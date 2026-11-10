@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.nx/
+.angular/
+.yarn/
+.studio/
+test-results/
+playwright-report/
+graphify-out/
+yarn.lock
+.env

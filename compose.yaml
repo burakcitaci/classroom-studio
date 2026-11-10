@@ -1,0 +1,12 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.15.5
+    environment:
+      QDRANT__TELEMETRY_DISABLED: "true"
+    ports:
+      - "127.0.0.1:6335:6333"
+    volumes:
+      - classroom_vectors:/qdrant/storage
+
+volumes:
+  classroom_vectors:

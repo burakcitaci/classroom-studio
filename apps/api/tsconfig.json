@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmitOnError": true,
+    "rootDir": "../..",
+    "outDir": "../../dist/api",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "types": ["node", "multer"]
+  },
+  "include": ["src/**/*.ts", "../../libs/contracts/src/**/*.ts"]
+}
