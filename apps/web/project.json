@@ -5,7 +5,7 @@
   "implicitDependencies": ["contracts"],
   "targets": {
     "build": {
-      "executor": "@angular/build:application",
+      "executor": "@nx/angular:application",
       "outputs": ["{workspaceRoot}/dist/web"],
       "defaultConfiguration": "production",
       "options": {
@@ -21,7 +21,7 @@
       }
     },
     "serve": {
-      "executor": "@angular/build:dev-server",
+      "executor": "@nx/angular:dev-server",
       "continuous": true,
       "options": {
         "buildTarget": "web:build:development",

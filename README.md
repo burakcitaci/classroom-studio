@@ -14,7 +14,7 @@ yarn.cmd start
 
 Open [Classroom Studio](http://127.0.0.1:4300). For Angular live reload, run `yarn.cmd dev` and open [the dev server](http://127.0.0.1:4200). Restart the dev command after changes to the API. On macOS and Linux, use `yarn` in place of `yarn.cmd`.
 
-The workspace pins Nx 24.0.5, Angular 22.2.5 with Angular Build 22.2.6, NestJS 12.4.2, Tailwind 4.3.5, TypeScript 6.0.3 and Yarn 4.18.1. TypeScript 6.0 is the newest line supported by Angular 22. Angular Build supplies the Nx web executors, and Nx orchestrates the two applications and shared contracts. [Nx compatibility](https://nx.dev/docs/kb/angular-nx-version-matrix), [Angular compatibility](https://angular.dev/reference/versions), [Node LTS release](https://nodejs.org/en/blog/release/v26.13.0).
+The workspace pins Nx and @nx/angular 24.0.5, Angular 22.2.5 with Angular Build 22.2.6, NestJS 12.4.2, Tailwind 4.3.5, TypeScript 6.0.3 and Yarn 4.18.1. TypeScript 6.0 is the newest line supported by Angular 22. Nx runs the Angular build and dev server through @nx/angular, and builds the NestJS API with tsc. The @nx/nest 24.0.5 generator supports NestJS 10 and 11. The API uses NestJS 12 directly. [Nx compatibility](https://nx.dev/docs/kb/angular-nx-version-matrix), [Angular compatibility](https://angular.dev/reference/versions), [Node LTS release](https://nodejs.org/en/blog/release/v26.13.0).
 
 ## Try an exam
 
@@ -29,6 +29,8 @@ The workspace pins Nx 24.0.5, Angular 22.2.5 with Angular Build 22.2.6, NestJS 1
 The synthetic [format sample](fixtures/sample-exam.txt) and [teaching materials](fixtures/teaching-notes.txt) are available for manual upload. Demo mode uses a small bilingual question bank for ecosystems and general templates for other topics. Its scoring guidance and source matching are illustrative.
 
 ## Enable Ollama
+
+If Ollama is already running, Classroom Studio connects to it at http://127.0.0.1:11434. Run the pull commands only for models missing from ollama list.
 
 ```powershell
 Copy-Item .env.example .env
