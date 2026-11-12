@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Inject, Injectable, type OnApplicationBootstrap } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { type Brief, type Generation, type Job, type Question } from '../../../../libs/contracts/src/index.js';
-import { parameters, PROMPT_VERSION, type FactPassage, type Generator, validateAssessment } from './assessment/assessment-schema.js';
+import { generationParameters, PROMPT_VERSION, type FactPassage, type Generator, validateAssessment } from './assessment/assessment-schema.js';
 import { factPassages, isExamReference } from './assessment/exam-reference.js';
 import { ProviderError } from '../providers/provider-request.js';
 import { retrieve, type VectorIndex } from '../sources/retrieval.js';
@@ -69,7 +69,7 @@ export class GenerationService implements OnApplicationBootstrap {
       }
       const audit: Job = { id: randomUUID(), stage: 'queued', created: now(),
         model: settings.generationModel ?? this.generator.model,
-        promptVersion: PROMPT_VERSION, parameters, settings,
+        promptVersion: PROMPT_VERSION, parameters: generationParameters(settings), settings,
         sources: selected.map(({ id, name, type }) => ({ id, name, type })), evidence: [], warnings: [] };
       await this.store.run('INSERT INTO jobs (id, doc_id, request_key, input, base_edit, created, stage, audit) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
         audit.id, id, key, encode({ settings, existing }), edit, audit.created, audit.stage, encode(audit));

@@ -11,7 +11,6 @@ import { DocumentTypesManager } from './features/document-types/document-types-m
 import { TeacherDialog } from './shared/teacher-dialog/teacher-dialog';
 import { SaveIndicator, Skeleton, designCopy } from './shared/studio-ui';
 import { NgTemplateOutlet } from '@angular/common';
-import type { DocumentType } from '../../../../libs/contracts/src';
 
 @Component({
   selector: 'studio-root',
@@ -29,17 +28,16 @@ export class App implements OnInit {
   protected readonly switchingLanguage = signal(false);
   protected readonly copy = designCopy;
   protected readonly mobileMenu = signal(false);
-  protected readonly showTypes = signal(false);
   protected readonly pendingLocale = signal<InterfaceLocale | null>(null);
   protected readonly classTrail = signal<{ classTitle: string; lessonTitle?: string } | null>(null);
 
-  protected navigate(section: 'classes' | 'documents') {
+  protected navigate(section: 'classes' | 'documents' | 'types') {
     this.mobileMenu.set(false);
-    if (section === 'classes') void this.vm.openClass(undefined, undefined, true);
+    if (section === 'types') void this.vm.openTypes(true);
+    else if (section === 'classes') void this.vm.openClass(undefined, undefined, true);
     else void this.vm.open(undefined, 'brief', true);
   }
 
-  protected async useType(type: DocumentType) { this.showTypes.set(false); await this.vm.create(type.id); }
 
   protected async changeLanguage(value: string) {
     if ((value !== 'en' && value !== 'de') || value === this.locale || this.switchingLanguage()) return;

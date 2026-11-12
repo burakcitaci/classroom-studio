@@ -130,11 +130,20 @@ export interface StudioDocument extends Working {
 export interface Revision {
   id: string;
   number: number;
+  name?: string;
+  nameEdit?: number;
   kind: 'AI' | 'Teacher' | 'Ready' | 'Restored';
   created: string;
   draft: Assessment;
   settings: Settings;
   jobId?: string;
+}
+
+export function normalizeSectionHeading(title: string): string {
+  const first = /^\s*AFB\s*(III|II|I)\b/i.exec(title);
+  if (!first) return title;
+  const heading = title.replace(/^(?:\s*AFB\s*(?:III|II|I)\b\s*[:–—-]?\s*)+/i, '');
+  return 'AFB ' + first[1].toUpperCase() + ': ' + heading;
 }
 export type JobStage = 'queued' | 'retrieving' | 'generating' | 'validating' | 'succeeded' | 'failed';
 export interface Job {

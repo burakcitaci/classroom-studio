@@ -6,7 +6,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { WorkspaceStore } from '../workspace/workspace-store';
 import { Icon } from '../../shared/icon/icon';
 import { FormsModule } from '@angular/forms';
-import { kinds, modes, type RagMode } from '../../../../../../libs/contracts/src';
+import { modes, type RagMode } from '../../../../../../libs/contracts/src';
 import { SourceMaterials } from '../sources/source-materials';
 
 @Component({
@@ -20,14 +20,8 @@ export class AssessmentBrief {
   private readonly workspace = inject(WorkspaceStore);
 
   protected get vm() { return this.workspace.view; }
-  protected readonly kinds = kinds;
   protected showTypes = false;
   protected readonly hasSelectedType = (type: DocumentType) => type.id === this.vm.settings.brief.documentType?.id;
-  protected async useType(type: DocumentType) {
-    this.showTypes = false;
-    if (!this.vm.planEditing) await this.vm.editPlan();
-    this.vm.chooseDocumentType(type.id);
-  }
   protected readonly modes = modes;
   protected readonly modeInfo: Record<RagMode, string> = {
     Off: $localize`:@@ui_7c690a44b31f:Use your brief and pasted notes.`,

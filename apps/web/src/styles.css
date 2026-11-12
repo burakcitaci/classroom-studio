@@ -1080,12 +1080,31 @@ studio-generation-audit .audit-card:has(.badge.red) { border-color: oklch(.83 .0
 studio-document-workspace .tabs { background: transparent; }
 studio-classrooms-page .class-row .subject-icon { color: hsl(var(--subject-hue) 35% 30%); background: hsl(var(--subject-hue) 35% 94%); }
 .subject-chip { display: inline-block; color: hsl(var(--subject-hue) 35% 30%); background: hsl(var(--subject-hue) 35% 94%); padding: 2px 6px; border-radius: 4px; margin-right: 4px; font-size: 12px; }
-/* Toasts clear the sticky generation and ready actions. */
-studio-root:has(.plan-generate-footer, .ready-action) studio-toaster [data-sonner-toaster] { bottom: 112px; }
 .source-include { display: inline-grid; place-items: center; flex: none; }
 @media (max-width: 767px) {
   .source-include { min-height: 44px; min-width: 44px; }
   .check-label { min-height: 44px; }
   .link-button { display: inline-flex; align-items: center; min-height: 44px; }
-  studio-toaster [data-sonner-toaster] { bottom: 112px !important; }
 }
+studio-document-types-manager { display: block; }
+.type-table-panel { padding: 0; overflow: hidden; }
+.type-table-panel .section-head { padding: 20px 24px; margin: 0; align-items: center; }
+.types-table { width: 100%; border-collapse: collapse; text-align: left; }
+.types-table th { font-size: 12px; color: var(--muted); background: var(--surface-muted); padding: 12px 24px; }
+.types-table td { border-top: 1px solid var(--border); padding: 20px 24px; font-size: 14px; }
+.types-table tbody tr { cursor: pointer; }
+.types-table tbody tr:hover, .types-table tbody tr:focus-within { background: var(--primary-soft); }
+.type-row-title { display: inline-flex; align-items: center; gap: 12px; text-align: left; font-weight: 500; min-height: 40px; }
+.type-guidance-preview { max-width: 40ch; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.type-delete-zone { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border); }
+.type-delete-zone p { color: var(--muted); margin-bottom: 16px; }
+@media (max-width: 767px) { .types-table :is(th,td) { padding: 12px 16px; } .types-table :is(th,td):nth-child(3) { display: none; } .type-row-title { min-height: 44px; } }
+/* A dedicated dismiss control remains available when both action slots are used. */
+studio-toaster [data-sonner-toast] [data-close-button] { position: absolute; top: 8px; right: 8px; left: auto; transform: none; width: 28px; height: 28px; border-radius: 6px; }
+studio-toaster [data-sonner-toast] [data-content] { padding-right: 28px; }
+@media (max-width: 767px) {
+  studio-toaster [data-sonner-toast] [data-close-button] { width: 44px; height: 44px; top: 4px; right: 4px; }
+  studio-toaster [data-sonner-toast] [data-content] { padding-right: 36px; }
+}
+.version-custom-name { display: block; margin-bottom: 4px; font-size: 16px; }
+.version-custom-name + strong { font-size: 12px; font-weight: 400; color: var(--muted); }

@@ -231,16 +231,17 @@
       <studio-teacher-dialog i18n-title="@@ui_fc51cb7ddc24" title="Create document" [description]="ui('File this document under ') + entry.label + '.'" [busy]="saving()" (closed)="close()">
         <form (ngSubmit)="save(entry)">
           @if (formError()) { <div class="message danger" role="alert">{{ formError() }}</div> }
+          @if (!customTypes.length) { <p>{{ copy.noTypes }}</p><button class="btn" type="button" (click)="manageTypes()">{{ copy.manageTypes }}</button> }
           <label class="field"><ng-container i18n="@@ui_300b6ef0cdd8">Document type</ng-container>
             <select name="kind" [(ngModel)]="entry.value">
-              @for (kind of kinds; track kind) { <option [value]="kind">{{ ui(kind) }}</option> }
+
               @for (type of customTypes; track type.id) { <option [value]="type.id">{{ type.title }}</option> }
             </select>
           </label>
           <p class="form-help" i18n="@@ui_ded2922df14a">Review the prefilled brief before you generate.</p>
           <div class="button-row dialog-actions">
             <button class="btn" type="button" [disabled]="saving()" (click)="close()" i18n="@@ui_77dfd2135f4d">Cancel</button>
-            <button brnButton class="btn primary" type="submit" [disabled]="saving()" i18n="@@ui_fc51cb7ddc24">Create document</button>
+            <button brnButton class="btn primary" type="submit" [disabled]="saving() || !entry.value" i18n="@@ui_fc51cb7ddc24">Create document</button>
           </div>
         </form>
       </studio-teacher-dialog>

@@ -38,6 +38,7 @@ test('PostgreSQL preserves saved work across reconnects, serializes concurrent s
     await store.run('INSERT INTO chunks (id, source_id, ordinal, text) VALUES ($1, $2, $3, $4)',
       randomUUID(), source, 0, 'Maps represent distances.');
     const revision = await store.addSnapshot(document, 'Teacher', draft, settings, job);
+    await store.renameSnapshot(document, revision.id, 'Reviewed for 9B', 0);
     await store.run('INSERT INTO jobs (id, doc_id, request_key, input, base_edit, created, stage, audit) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
       job, document, randomUUID(), JSON.stringify({ settings }), savedDraft.edit, timestamp, 'succeeded',
       JSON.stringify({ id: job, stage: 'succeeded' }));
@@ -52,10 +53,11 @@ test('PostgreSQL preserves saved work across reconnects, serializes concurrent s
     assert.deepEqual(persisted.draft, draft);
     assert.equal(persisted.sources[0].id, source);
     assert.equal((await store.snapshot(document, revision.id)).jobId, job);
+    assert.equal((await store.snapshot(document, revision.id)).name, 'Reviewed for 9B');
     assert.equal((await store.chunks(source))[0].text, 'Maps represent distances.');
     assert.equal((await store.list()).length, 1);
     assert.equal((await store.jobRows(document)).length, 1);
-    assert.deepEqual(await store.all('SELECT name FROM migrations ORDER BY name'), [{ name: '001-initial.sql' }, { name: '002-document-types.sql' }]);
+    assert.deepEqual(await store.all('SELECT name FROM migrations ORDER BY name'), [{ name: '001-initial.sql' }, { name: '002-document-types.sql' }, { name: '003-version-names.sql' }]);
     const saved = await Promise.allSettled([1, 2].map(number => store.save(document, {
       edit: persisted.edit, settings: { ...settings, brief: { ...settings.brief, brief: 'Edit ' + number } }, draft,
     })));

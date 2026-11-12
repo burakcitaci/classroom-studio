@@ -4,7 +4,7 @@
     <button class="nav-item" type="button" [class.active]="vm.section === 'classes'" [attr.aria-current]="vm.section === 'classes' ? 'page' : null" [attr.aria-label]="ui('Classes')" (click)="navigate('classes')"><studio-icon name="book" /><span>{{ ui('Classes') }}</span></button>
     <button class="nav-item" type="button" [class.active]="vm.section === 'documents'" [attr.aria-current]="vm.section === 'documents' ? 'page' : null" [attr.aria-label]="ui('Documents')" (click)="navigate('documents')"><studio-icon name="docs" /><span>{{ ui('Documents') }}</span></button>
     <div class="nav-divider"></div>
-    <button class="nav-item" type="button" aria-haspopup="dialog" (click)="mobileMenu.set(false); showTypes.set(true)" aria-label="Document types" i18n-aria-label="@@documentTypes"><studio-icon name="grid" /><span i18n="@@documentTypes">Document types</span></button>
+    <button class="nav-item" type="button" [class.active]="vm.section === 'types'" [attr.aria-current]="vm.section === 'types' ? 'page' : null" (click)="navigate('types')" aria-label="Document types" i18n-aria-label="@@documentTypes"><studio-icon name="grid" /><span i18n="@@documentTypes">Document types</span></button>
   </nav>
   <div class="sidebar-foot">
     <span class="mode-pill"><span class="mode-dot" [class.live]="vm.provider === 'ollama'"></span>{{ vm.provider === 'demo' ? ui('Demo mode') : vm.provider === 'ollama' ? ui('Ollama mode') : ui('Connecting…') }}</span>
@@ -25,7 +25,8 @@
   <header class="topbar">
     <button class="icon-button mobile-menu-trigger" type="button" [attr.aria-label]="copy.menu" [attr.aria-expanded]="mobileMenu()" aria-haspopup="dialog" (click)="mobileMenu.set(true)"><studio-icon name="menu" /></button>
     <nav class="breadcrumbs" aria-label="Document navigation" i18n-aria-label="@@documentNavigation">
-      @if (vm.doc; as doc) {
+      @if (vm.section === 'types') { <span class="crumb" aria-current="page" i18n="@@documentTypes">Document types</span> }
+      @else if (vm.doc; as doc) {
         <button class="crumb document-back" [disabled]="vm.savingPlan" aria-label="Back to documents" i18n-aria-label="@@backToDocuments" (click)="navigate('documents')">{{ ui('Documents') }}</button>
         @if (doc.context; as context) {
           <studio-icon name="chevron" /><button class="crumb" (click)="vm.openClass(context.classId, undefined, true)">{{ context.classTitle }}</button>
@@ -44,6 +45,7 @@
   </header>
   <main class="main-content" id="main-content">
     @if (vm.loading) { <studio-skeleton /> }
+    @else if (vm.section === 'types') { <studio-document-types-manager /> }
     @else if (vm.section === 'classes') { <studio-classrooms-page [classId]="vm.classId" [lessonId]="vm.lessonId" (locationChange)="classTrail.set($event)" /> }
     @else if (!vm.doc) { <studio-documents-page /> }
     @else { <studio-document-workspace /> }
@@ -52,7 +54,6 @@
 @if (mobileMenu()) {
   <studio-teacher-dialog [title]="ui('Workspace')" placement="navigation" (closed)="mobileMenu.set(false)"><ng-container [ngTemplateOutlet]="navigation" [ngTemplateOutletContext]="{ mobile: true }" /></studio-teacher-dialog>
 }
-@if (showTypes()) { <studio-document-types-manager (closed)="showTypes.set(false)" (selected)="useType($event)" /> }
 @if (pendingLocale()) {
   <studio-teacher-dialog [title]="ui('Interface language')" [description]="copy.language" [busy]="switchingLanguage()" (closed)="pendingLocale.set(null)">
     <div dialog-footer class="button-row"><button class="btn" [disabled]="switchingLanguage()" (click)="pendingLocale.set(null)">{{ ui('Cancel') }}</button><button class="btn primary" [disabled]="switchingLanguage()" (click)="confirmLanguage()">{{ ui('Interface language') }}: {{ pendingLocale() === 'de' ? 'Deutsch' : 'English' }}</button></div>

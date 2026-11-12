@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test';
+import { ensureDocumentTypes } from './type-fixtures.mjs';
+test.beforeEach(async ({ request }) => { await ensureDocumentTypes(request); });
 
 test('plans a class and a lesson, reuses lesson context and finds the document again', async ({ page }, info) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -47,7 +49,7 @@ test('plans a class and a lesson, reuses lesson context and finds the document a
   expect(lessonId).toBeTruthy();
   await page.getByRole('button', { name: 'Create document', exact: true }).click();
   dialog = page.getByRole('dialog');
-  await dialog.getByLabel('Document type').selectOption('Quiz');
+  await dialog.getByLabel('Document type').selectOption({ label: 'Quiz' });
   await dialog.getByRole('button', { name: 'Create document', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Plant and animal cells · Quiz', exact: true })).toBeVisible();
   await expect(page.getByLabel('What should Studio create?')).toHaveValue(/Identify the cell wall and nucleus/);

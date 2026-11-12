@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { assessmentSchema, questionBodySchema, type Assessment, type Evidence, type Generation, type Job, type Question } from '../../../../../libs/contracts/src/index.js';
 import { ProviderError } from '../../providers/provider-request.js';
 import { comparable, examQuestionCheck } from './exam-reference.js';
+import { assessmentRequirements } from './assessment-quality.js';
 
 const modelQuestion = questionBodySchema.extend({ citations: z.array(z.number().int().positive()).max(8) });
 export const outputSchema = z.strictObject({
@@ -19,8 +20,11 @@ export const outputSchema = z.strictObject({
 export type ModelOutput = z.infer<typeof outputSchema>;
 export type ModelQuestion = z.infer<typeof modelQuestion>;
 
-export const PROMPT_VERSION = 'assessment-v8';
+export const PROMPT_VERSION = 'assessment-v9';
 export const parameters = { temperature: 0.2, seed: 42, numPredict: 5500 };
+export function generationParameters(settings: Generation) {
+  return { ...parameters, numPredict: !settings.questionId && assessmentRequirements(settings.brief) ? 10000 : parameters.numPredict };
+}
 export type FactPassage = Pick<Evidence, 'sourceId' | 'name' | 'ordinal' | 'text'>;
 export interface Generator {
   model: string;
@@ -43,6 +47,30 @@ export function atlasPlaceholder(brief: Generation['brief']) {
 export function draftIssue(output: ModelOutput, context: GenerationContext) {
   const questions = output.sections.flatMap(section => section.questions);
   const issues: string[] = [];
+  const studentText = [output.instructions, ...output.sections.map(section => section.instructions)].map(comparable).join(' ');
+  const teacherText = [context.settings.brief.brief, context.settings.brief.documentType?.guidance ?? ''];
+  const copiedBrief = teacherText.some(text => {
+    const words = comparable(text).split(' ').filter(Boolean);
+    return words.length >= 12 && words.some((_, index) => index + 12 <= words.length && studentText.includes(words.slice(index, index + 12).join(' ')));
+  });
+  if (copiedBrief) issues.push('Student instructions copy the teacher brief or reusable generation guidance. Replace them with concise directions addressed to students. Never print instructions about creating the assessment.');
+  const requirements = !context.existing && assessmentRequirements(context.settings.brief);
+  if (requirements) {
+    if (questions.length < requirements.minimumQuestions) issues.push('The Abitur practice is too short. Supply at least ' + requirements.minimumQuestions + ' substantial tasks, including application and evaluation, rather than a definition quiz.');
+    if (output.sections.length < requirements.minimumSections) issues.push('Create separate sections for ' + requirements.cognitiveAreas.join(', ') + '.');
+    if (requirements.cognitiveAreas.length) {
+      const areas = [
+        { title: /\bAFB\s*I\b|reproduktion|grundwissen|recall/i, task: /./s },
+        { title: /\bAFB\s*II\b|anwendung|analyse|application|analysis/i, task: /analys|erklär|erläut|vergleich|untersuch|berechn|anwenden|wende|explain|compare|apply|calculat/i },
+        { title: /\bAFB\s*III\b|transfer|bewertung|beurteilung|evaluation/i, task: /beurteil|bewert|erörter|diskut|begründe|begr[uü]nd|entwick|prüf|evaluate|assess|justify|discuss|propose|design|argue|stellung/i },
+      ];
+      areas.forEach((area, index) => {
+        const sections = output.sections.filter(section => area.title.test(section.title));
+        if (!sections.some(section => section.questions.some(question => area.task.test(question.prompt)))) issues.push('Missing substantive tasks for ' + requirements.cognitiveAreas[index] + '. Use that AFB label in the section title and an appropriate task operator.');
+        if (context.evidence.length && sections.length && !sections.some(section => section.questions.some(question => question.citations.length))) issues.push('Ground ' + requirements.cognitiveAreas[index] + ' in the supplied excerpts and cite its supporting evidence.');
+      });
+    }
+  }
   const expected = context.existing?.points ?? context.settings.brief.totalPoints;
   if (expected !== null && questions.reduce((sum, question) => sum + question.points, 0) !== expected) {
     issues.push('The generated points did not add up to ' + expected + '. Create tasks and rubrics totaling exactly ' + expected + '.');

@@ -32,6 +32,7 @@ const contextView = (row: ContextRow) => row.class_id && row.class_title
   : null;
 
 interface RevisionRow {
+  name: string; name_edit: number;
   id: string; number: number; kind: Revision['kind']; created: string; settings: string; draft: string;
   job_id: string | null;
 }
@@ -235,15 +236,22 @@ export class StudioStore {
     return this.transaction(async () => {
       await this.document(id, true);
       const revision = randomUUID();
-      await this.run(`INSERT INTO revisions VALUES ($1, $2, (SELECT COALESCE(MAX(number), 0) + 1 FROM revisions WHERE doc_id = $3),
+      await this.run(`INSERT INTO revisions (id, doc_id, number, kind, created, draft, settings, job_id) VALUES ($1, $2, (SELECT COALESCE(MAX(number), 0) + 1 FROM revisions WHERE doc_id = $3),
         $4, $5, $6, $7, $8)`, revision, id, id, kind, now(), encode(draft), encode(settings), jobId ?? null);
       return this.snapshot(id, revision);
     });
   }
 
   private revision(row: RevisionRow): Revision {
-    return { id: row.id, number: row.number, kind: row.kind, created: row.created, settings: decode(row.settings),
+    return { id: row.id, number: row.number, name: row.name, nameEdit: row.name_edit, kind: row.kind, created: row.created, settings: decode(row.settings),
       draft: decode(row.draft), jobId: row.job_id ?? undefined };
+  }
+
+  async renameSnapshot(id: string, version: string, name: string, nameEdit: number) {
+    await this.snapshot(id, version);
+    const changed = await this.run('UPDATE revisions SET name = $1, name_edit = name_edit + 1 WHERE doc_id = $2 AND id = $3 AND name_edit = $4', name, id, version, nameEdit);
+    if (!changed.changes) throw new ConflictException('This version name changed. Reload the history and try again.');
+    return this.snapshot(id, version);
   }
 
   async commit(id: string, edit: number, kind: 'Teacher' | 'Ready', acceptWarnings: boolean) {

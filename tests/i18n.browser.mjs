@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test';
+import { ensureDocumentTypes } from './type-fixtures.mjs';
+test.beforeEach(async ({ request }) => { await ensureDocumentTypes(request); });
 
 test.use({ locale: 'de-DE' });
 
@@ -33,6 +35,7 @@ test('German interface follows browser language and safely switches to English',
 test('language switching saves document edits and preserves exam language and enum values', async ({ page }) => {
   await page.goto('/?view=documents&lang=en');
   await page.getByRole('button', { name: 'Create document', exact: true }).click();
+  await page.getByRole('dialog').getByRole('combobox', { name: /^Document type/ }).selectOption({ label: 'Exam' });
   await page.getByRole('dialog').getByRole('button', { name: 'Create document', exact: true }).click();
   await expect(page.getByLabel('What should Studio create?')).toBeVisible();
   const documentId = new URL(page.url()).searchParams.get('document');
@@ -43,8 +46,9 @@ test('language switching saves document edits and preserves exam language and en
   await page.getByRole('dialog').getByRole('button', { name: /^(Sprache der Oberfläche|Interface language):/ }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'de');
   await expect(page.getByLabel('Was soll Studio erstellen?')).toHaveValue(brief);
-  await expect(page.locator('studio-assessment-brief').getByLabel('Dokumenttyp')).toHaveValue('Exam');
-  await expect(page.locator('studio-assessment-brief').getByLabel('Dokumenttyp').locator('option:checked')).toHaveText('Klassenarbeit');
+  const current = await (await page.request.get('/api/documents/' + documentId)).json();
+  await expect(page.locator('studio-assessment-brief').getByLabel('Dokumenttyp')).toHaveValue(current.settings.brief.documentType.id);
+  await expect(page.locator('studio-assessment-brief').getByLabel('Dokumenttyp').locator('option:checked')).toHaveText('Exam');
   await page.getByText('Weitere Optionen', { exact: true }).first().click();
   await expect(page.getByLabel('Ausgabesprache')).toHaveValue('en');
   await page.getByRole('button', { name: 'Plan bearbeiten', exact: true }).click();
@@ -54,7 +58,7 @@ test('language switching saves document edits and preserves exam language and en
   await page.getByRole('dialog').getByRole('button', { name: /^(Sprache der Oberfläche|Interface language):/ }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   const saved = await (await page.request.get('/api/documents/' + documentId)).json();
-  expect(saved.settings.brief).toMatchObject({ brief, kind: 'Exam', language: 'en', difficulty: 'Challenging' });
+  expect(saved.settings.brief).toMatchObject({ brief, kind: 'Custom', language: 'en', difficulty: 'Challenging' });
   await expect(page.getByLabel('What should Studio create?')).toHaveValue(brief);
 });
 
@@ -62,9 +66,9 @@ test('German document creation sends stable schema values and fits a mobile view
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?view=documents');
   await page.getByRole('button', { name: 'Dokument erstellen', exact: true }).click();
-  await page.getByRole('radio', { name: 'Arbeitsblatt', exact: true }).check();
+  await page.getByRole('dialog').getByRole('combobox', { name: /^Dokumenttyp/ }).selectOption({ label: 'Worksheet' });
   await page.getByRole('dialog').getByRole('button', { name: 'Dokument erstellen', exact: true }).click();
-  await expect(page.locator('studio-assessment-brief').getByLabel('Dokumenttyp')).toHaveValue('Worksheet');
+  await expect(page.locator('studio-assessment-brief').getByLabel('Dokumenttyp').locator('option:checked')).toHaveText('Worksheet');
   await expect(page.getByRole('tab', { name: 'Plan', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Entwurf erstellen', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

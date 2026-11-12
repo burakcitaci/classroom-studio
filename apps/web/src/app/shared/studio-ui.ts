@@ -13,6 +13,12 @@ export const designCopy = interfaceLocale === 'de' ? {
   drag: 'Frage ziehen', createClass: 'Erstelle deine erste Klasse', status: 'Nach Status filtern',
   noRuns: 'Noch keine Erstellung', noVersions: 'Noch keine gespeicherten Versionen',
   progress: 'Dokumentfortschritt',
+  renameVersion: 'Version benennen', versionName: 'Versionsname', saveName: 'Namen speichern', nameSaved: 'Versionsname gespeichert.', nameHelp: 'Ein leerer Name setzt die Standardbezeichnung wieder ein. Der gespeicherte Inhalt bleibt unverändert.',
+  saveType: 'Typ speichern', createType: 'Typ erstellen', manageTypes: 'Dokumenttypen verwalten',
+  typesHelp: 'Verwalte deine Vorlagen. Wähle sie später beim Erstellen eines Dokuments aus.',
+  noTypes: 'Noch keine Dokumenttypen. Erstelle zuerst einen Typ für deine Dokumente.',
+  deleteType: 'Typ löschen', typeDeleted: 'Dokumenttyp gelöscht.',
+  deleteTypeHelp: 'Diesen Typ aus der Auswahl entfernen? Bestehende Dokumente behalten ihre gespeicherten Vorgaben.',
 } : {
   plan: 'Plan', sources: 'Sources', draft: 'Draft', ready: 'Ready', menu: 'Open menu',
   why: 'Why these questions?', compare: 'Compare with current',
@@ -22,6 +28,12 @@ export const designCopy = interfaceLocale === 'de' ? {
   drag: 'Drag question', createClass: 'Create your first class', status: 'Filter by status',
   noRuns: 'No generation attempts yet', noVersions: 'No saved versions yet',
   progress: 'Document progress',
+  renameVersion: 'Rename version', versionName: 'Version name', saveName: 'Save name', nameSaved: 'Version name saved.', nameHelp: 'Leave the name blank to restore the default label. Saved content stays unchanged.',
+  saveType: 'Save type', createType: 'Create type', manageTypes: 'Manage document types',
+  typesHelp: 'Manage your reusable templates. Select them later when creating a document.',
+  noTypes: 'No document types yet. Create a type first to use it for your documents.',
+  deleteType: 'Delete type', typeDeleted: 'Document type deleted.',
+  deleteTypeHelp: 'Remove this type from the selection? Existing documents keep their saved guidance.',
 };
 
 @Directive({ selector: 'button[studioButton]', host: {

@@ -1,18 +1,25 @@
-import { ChangeDetectionStrategy, Component, inject, output, signal, type OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input, output, signal, type OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { documentTypeInputSchema, type DocumentType, type DocumentTypeInput } from '../../../../../../libs/contracts/src';
 import { TeacherDialog } from '../../shared/teacher-dialog/teacher-dialog';
 import { Icon } from '../../shared/icon/icon';
 import { Notifications } from '../../core/notifications';
 import { DocumentTypesStore } from './document-types.store';
+import { NgTemplateOutlet } from '@angular/common';
+import { ui } from '../../core/i18n/ui-messages';
+import { designCopy } from '../../shared/studio-ui';
 
 @Component({
-  selector: 'studio-document-types-manager', imports: [FormsModule, TeacherDialog, Icon],
+  selector: 'studio-document-types-manager', imports: [FormsModule, TeacherDialog, Icon, NgTemplateOutlet],
   templateUrl: './document-types-manager.html', changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DocumentTypesManager implements OnInit {
   readonly closed = output<void>();
-  readonly selected = output<DocumentType>();
+  readonly embedded = input(false);
+  protected readonly ui = ui;
+  protected readonly confirmDelete = signal(false);
+  protected closeSheet() { if (!this.busy()) { this.form.set(null); this.current = undefined; this.confirmDelete.set(false); } }
+  protected readonly copy = designCopy;
   protected readonly types = inject(DocumentTypesStore);
   private readonly notifications = inject(Notifications);
   protected current?: DocumentType;
@@ -21,6 +28,7 @@ export class DocumentTypesManager implements OnInit {
   protected readonly error = signal('');
   ngOnInit() { void this.types.load(); }
   protected edit(type?: DocumentType) {
+    this.confirmDelete.set(false);
     this.current = type;
     this.error.set('');
     this.form.set(type ? { title: type.title, guidance: type.guidance, audience: type.audience } : { title: '', guidance: '', audience: 'student' });
@@ -37,18 +45,21 @@ export class DocumentTypesManager implements OnInit {
     if (!parsed.success) { this.error.set($localize`:@@typeFieldsRequired:Enter a name and reusable guidance for this type.`); return; }
     this.busy.set(true); this.error.set('');
     try {
-      const saved = await this.types.save(parsed.data, this.current);
+      await this.types.save(parsed.data, this.current);
       this.notifications.success($localize`:@@typeSaved:Document type saved.`);
-      this.selected.emit(saved);
+      this.form.set(null);
+      this.current = undefined;
     } catch (error) { this.error.set(error instanceof Error ? error.message : $localize`:@@typeSaveError:Could not save the document type.`); }
     finally { this.busy.set(false); }
   }
+  private closeAfterDelete() { this.form.set(null); this.current = undefined; this.confirmDelete.set(false); }
   protected async archive(type: DocumentType) {
     if (this.busy()) return;
     this.busy.set(true); this.error.set('');
     try {
       await this.types.save({ title: type.title, guidance: type.guidance, audience: type.audience }, type, true);
-      this.notifications.success($localize`:@@typeArchived:Type archived. Existing documents keep their saved guidance.`);
+      this.notifications.success(this.copy.typeDeleted);
+      this.closeAfterDelete();
     } catch (error) { this.error.set(error instanceof Error ? error.message : $localize`:@@typeSaveError:Could not save the document type.`); }
     finally { this.busy.set(false); }
   }

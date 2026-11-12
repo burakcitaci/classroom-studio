@@ -1,7 +1,7 @@
 import { AlignmentType, BorderStyle, Document, Footer, HeadingLevel, Packer, PageNumber, Paragraph,
   Tab, TabStopType, TextRun } from 'docx';
 import type { Assessment, Settings } from '../../../../libs/contracts/src/index.js';
-import { totalPoints } from '../../../../libs/contracts/src/index.js';
+import { normalizeSectionHeading, totalPoints } from '../../../../libs/contracts/src/index.js';
 
 type Copy = 'student' | 'teacher';
 
@@ -21,7 +21,7 @@ function presentation(draft: Assessment, settings: Settings, copy: Copy) {
   let number = 0;
   const evidence = new Map(draft.evidence.map(item => [item.id, item]));
   const sections = draft.sections.map(section => ({
-    title: section.title,
+    title: normalizeSectionHeading(section.title),
     instructions: section.instructions,
     questions: section.questions.map(question => {
       const student = { number: ++number, prompt: question.prompt, points: question.points, lines: question.lines };

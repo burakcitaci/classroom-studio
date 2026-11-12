@@ -8,6 +8,10 @@ import { OllamaGenerator } from '../dist/api/apps/api/src/providers/ollama-gener
 import { QdrantIndex } from '../dist/api/apps/api/src/providers/qdrant-index.js';
 import { initialSettings } from '../dist/api/libs/contracts/src/index.js';
 
+const transportOutput = { title: 'Geography', instructions: 'Answer the question.', teacherNotes: '', warnings: [],
+  sections: [{ title: 'Directions', instructions: '', questions: [{ prompt: 'Name a cardinal direction.', points: 5, lines: 2,
+    answer: 'North.', rubric: 'Five points for a valid direction.', citations: [] }] }] };
+
 test('Ollama sends structured output and validates citation scope, totals and fresh questions', async t => {
   const settings = initialSettings();
   settings.brief.brief = 'Write an exam about pollination.';
@@ -53,7 +57,7 @@ test('retries a Qwen repetition abort once with the same model and adjusted samp
   const context = { settings, evidence: [], format: [] };
   const repeat = () => Response.json({ error: 'prediction aborted, token repeat limit reached' }, { status: 500 });
   const requests = [];
-  let replies = [repeat(), Response.json({ message: { content: '{}' }, prompt_eval_count: 12, eval_count: 8 })];
+  let replies = [repeat(), Response.json({ message: { content: JSON.stringify(transportOutput) }, prompt_eval_count: 12, eval_count: 8 })];
   t.mock.method(globalThis, 'fetch', async (url, options) => {
     if (url.pathname === '/api/show') return Response.json({ capabilities: ['completion'] });
     assert.equal(url.pathname, '/api/chat');
@@ -141,7 +145,7 @@ test('drafting receives verified facts without the exam wording or source quotes
     assert.equal(input.evidence.length, 1);
     assert.match(input.evidence[0].excerpt, /ten kilometers/);
     assert.doesNotMatch(body.messages[1].content, /SAMPLE_TASK_SENTINEL|Ein Zentimeter/);
-    return Response.json({ message: { content: '{}' } });
+    return Response.json({ message: { content: JSON.stringify(transportOutput) } });
   });
   const model = new OllamaGenerator('http://localhost:11434', 'test-model');
   const { evidence } = await model.extractFacts(settings, passages);
@@ -202,7 +206,7 @@ test('lists local completion models and sends the selected model to Ollama', asy
       if (body.model === 'chosen:8b') return Response.json({ capabilities: ['completion'] });
       return new Response(null, { status: 404 });
     }
-    return Response.json({ message: { content: '{}' } });
+    return Response.json({ message: { content: JSON.stringify(transportOutput) } });
   });
   const model = new OllamaGenerator('http://localhost:11434', 'configured-default:8b');
   assert.deepEqual(await model.listModels(), ['chosen:8b']);

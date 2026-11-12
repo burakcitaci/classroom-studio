@@ -20,7 +20,7 @@
       <label class="select-filter"><studio-icon name="filter" />
         <select i18n-aria-label="@@ui_53d21450d63a" aria-label="Filter document type" [(ngModel)]="filter">
           <option value="All types" i18n="@@ui_30c8a0fc9c1a">All types</option>
-          @for (kind of kinds; track kind) { <option [value]="kind">{{ ui(kind) }}</option> }
+
           @for (type of vm.documentTypes.items(); track type.id) { <option [value]="type.id">{{ type.title }}</option> }
         </select>
       </label>
@@ -63,23 +63,18 @@
 @if (showCreate) {
   <studio-teacher-dialog i18n-title="@@ui_fc51cb7ddc24" title="Create document" i18n-description="@@ui_a92f92b4ff4b" description="Choose the kind of assessment you want to make."
     [busy]="vm.busy" (closed)="showCreate = false">
+    @if (!vm.documentTypes.items().length) { <p>{{ copy.noTypes }}</p><button class="btn" (click)="vm.openTypes(true)">{{ copy.manageTypes }}</button> }
     <form (ngSubmit)="createDocument()">
       @if (createError()) { <div class="message danger" role="alert">{{ createError() }}</div> }
-      <fieldset class="kind-options">
-        <legend class="sr-only" i18n="@@ui_300b6ef0cdd8">Document type</legend>
-        @for (kind of kinds; track kind) {
-          <label class="choice" [class.selected]="createKind === kind">
-            <input type="radio" name="create-kind" [value]="kind" [(ngModel)]="createKind">
-            <span>{{ ui(kind) }}</span>
-          </label>
-        }
-        @for (type of vm.documentTypes.items(); track type.id) {
-          <label class="choice" [class.selected]="createKind === type.id"><input type="radio" name="create-kind" [value]="type.id" [(ngModel)]="createKind"><span>{{ type.title }}</span></label>
-        }
-      </fieldset>
+      <label class="field"><span i18n="@@ui_300b6ef0cdd8">Document type</span>
+        <select name="create-kind" [(ngModel)]="createKind">
+
+          @for (type of vm.documentTypes.items(); track type.id) { <option [value]="type.id">{{ type.title }}</option> }
+        </select>
+      </label>
       <div class="button-row justify-end mt-5">
         <button class="btn" type="button" [disabled]="vm.busy" (click)="showCreate = false" i18n="@@ui_77dfd2135f4d">Cancel</button>
-        <button brnButton class="btn primary" type="submit" [disabled]="vm.busy" i18n="@@ui_fc51cb7ddc24">Create document</button>
+        <button brnButton class="btn primary" type="submit" [disabled]="vm.busy || !createKind" i18n="@@ui_fc51cb7ddc24">Create document</button>
       </div>
     </form>
   </studio-teacher-dialog>

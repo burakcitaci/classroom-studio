@@ -1,4 +1,5 @@
 import { DocumentTypesStore } from '../document-types/document-types.store';
+import { designCopy } from '../../shared/studio-ui';
 import { Notifications } from '../../core/notifications';
 import { interfaceLocale } from '../../core/i18n/locale';
 import { ui } from '../../core/i18n/ui-messages';
@@ -40,7 +41,7 @@ export class WorkspaceStore implements OnDestroy {
   loadingModels = false;
   modelListError = '';
   list: DocumentSummary[] = [];
-  section: 'classes' | 'documents' = 'classes';
+  section: 'classes' | 'documents' | 'types' = 'classes';
   classId?: string;
   lessonId?: string;
   tab: Tab = 'brief';
@@ -87,6 +88,7 @@ export class WorkspaceStore implements OnDestroy {
   private poller?: ReturnType<typeof setInterval>;
   private savePromise?: Promise<boolean>;
   private refreshing = false;
+  private generationEpoch = 0;
   private navigation = 0;
   private readonly pop = () => void this.loadLocation();
   private readonly unload = (event: BeforeUnloadEvent) => { if (this.dirty) event.preventDefault(); };
@@ -203,12 +205,33 @@ export class WorkspaceStore implements OnDestroy {
     const query = new URLSearchParams(location.search);
     const id = query.get('document');
     const view = query.get('view');
-    if (id || view === 'documents') {
+    if (view === 'types' && !id) { await this.openTypes(); }
+    else if (id || view === 'documents') {
       const tab = workspaceTabs.find(item => item.id === view)?.id ?? 'brief';
       await this.open(id ?? undefined, tab);
     } else {
       await this.openClass(query.get('class') ?? undefined, query.get('lesson') ?? undefined);
     }
+  }
+
+  async openTypes(writeUrl = false) {
+    if (!this.canLeavePlan()) return;
+    if (this.dirty && !await this.flush()) return;
+    ++this.navigation;
+    this.notifications.dismiss('generation-progress');
+    this.trackedJob = undefined;
+    this.section = 'types';
+    this.classId = undefined;
+    this.lessonId = undefined;
+    this.doc = undefined;
+    this.draft = null;
+    this.jobs = [];
+    this.preview = undefined;
+    this.showExports = false;
+    this.error = '';
+    this.loading = false;
+    if (writeUrl) history.pushState(null, '', '?view=types&lang=' + interfaceLocale);
+    this.publish();
   }
 
   async openClass(classId?: string, lessonId?: string, writeUrl = false) {
@@ -496,10 +519,12 @@ export class WorkspaceStore implements OnDestroy {
   private async refresh() {
     const current = this.doc;
     if (!current || this.refreshing || this.loading) return;
+    const generationEpoch = this.generationEpoch;
     this.refreshing = true;
     try {
       const [doc, jobs] = await Promise.all([this.api.request<StudioDocument>('/documents/' + current.id), this.api.request<Job[]>('/documents/' + current.id + '/jobs')]);
-      if (this.doc?.id !== current.id) return;
+      // A poll started before the generation response may omit the new job.
+      if (this.doc?.id !== current.id || generationEpoch !== this.generationEpoch) return;
       const latestSuccess = jobs.find(job => job.versionId);
       const priorSuccess = this.jobs.find(job => job.versionId);
       const becameReady = doc.sources.some(item => item.status === 'ready' && !this.doc?.sources.some(old => old.id === item.id && old.status === 'ready'));
@@ -647,8 +672,13 @@ export class WorkspaceStore implements OnDestroy {
         const job = await this.api.request<Job>('/documents/' + id + '/jobs', { method: 'POST', key, body: payload });
         sessionStorage.removeItem(sessionKey);
         if (this.doc?.id !== id) return;
-        this.trackedJob = { id: job.id };
-        this.jobs = [job, ...this.jobs.filter(item => item.id !== job.id)];
+        ++this.generationEpoch;
+        // Polling can discover this job before POST returns. Keep that newer
+        // stage and its notification instead of replaying the queued snapshot.
+        if (!this.jobs.some(item => item.id === job.id)) {
+          this.trackedJob = { id: job.id };
+          this.jobs = [job, ...this.jobs];
+        }
         this.currentNotice = question ? $localize`:@@ui_aac93893377e:Question regeneration queued. Review the result before replacing.` : $localize`:@@ui_9c31fd23e911:Generation queued. You can keep working while it runs.`;
       } catch (error) {
         if (error instanceof ApiError && error.status < 500) sessionStorage.removeItem(sessionKey);
@@ -663,6 +693,22 @@ export class WorkspaceStore implements OnDestroy {
     const question = this.draft?.sections.flatMap(section => section.questions).find(item => item.id === id);
     if (id && !question) { this.fail($localize`:@@ui_4201e7ad1170:The original question is no longer in this draft.`); return; }
     void this.generate(question);
+  }
+
+  async renameVersion(version: Revision, name: string): Promise<boolean> {
+    if (!this.doc) return false;
+    const id = this.doc.id;
+    try {
+      const renamed = await this.api.request<Revision>('/documents/' + id + '/versions/' + version.id, {
+        method: 'PATCH', body: { name, nameEdit: version.nameEdit ?? 0 },
+      });
+      if (this.doc?.id !== id) return false;
+      this.revisions = this.revisions.map(item => item.id === renamed.id ? renamed : item);
+      if (this.preview?.id === renamed.id) this.preview = renamed;
+      this.notice = designCopy.nameSaved;
+      this.publish();
+      return true;
+    } catch (error) { this.fail(error); return false; }
   }
 
   async saveVersion(kind: 'Teacher' | 'Ready', acceptWarnings = false) {

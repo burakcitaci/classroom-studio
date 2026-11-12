@@ -29,7 +29,12 @@ for (const width of [1280, 390, 320]) {
     }
     expect(layout.fits).toBe(true);
     await page.screenshot({ path: info.outputPath('german-toast-' + width + '.png'), animations: 'disabled' });
-    await audit.click();
+    await failure.getByRole('button', { name: 'Close toast', exact: true }).click();
+    await expect(failure).toHaveCount(0);
+    await page.getByRole('tab', { name: 'Plan', exact: true }).click();
+    await expect(failure).toHaveCount(0);
+    await page.getByRole('tab', { name: 'Bearbeiten', exact: true }).click();
+    await page.getByRole('button', { name: 'Warum diese Fragen?', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Erstellungsprotokoll', exact: true })).toBeVisible();
   });
 }

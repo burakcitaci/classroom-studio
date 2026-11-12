@@ -9,7 +9,7 @@
       <button type="button" class="link-button mb-3" (click)="showTypes = true" [disabled]="vm.busy" i18n="@@manageDocumentTypes">Manage document types</button>
       <fieldset class="plan-fields" [disabled]="!vm.planEditing || vm.busy">
         <label class="field"><ng-container i18n="@@ui_300b6ef0cdd8">Document type</ng-container><select [ngModel]="vm.selectedDocumentType" (ngModelChange)="vm.chooseDocumentType($event)">
-          @for (kind of kinds; track kind) { <option [value]="kind">{{ ui(kind) }}</option> }
+          @if (!vm.settings.brief.documentType) { <option [value]="vm.settings.brief.kind" disabled>{{ vm.typeTitle }}</option> }
           @for (type of vm.documentTypes.items(); track type.id) { <option [value]="type.id">{{ type.title }}</option> }
           @if (vm.settings.brief.documentType; as savedType) {
             @if (!vm.documentTypes.items().some(hasSelectedType)) { <option [value]="savedType.id">{{ savedType.title }}</option> }
@@ -74,4 +74,4 @@
 
 <studio-generation-controls />
 
-@if (showTypes) { <studio-document-types-manager (closed)="showTypes = false" (selected)="useType($event)" /> }
+@if (showTypes) { <studio-document-types-manager [embedded]="true" (closed)="showTypes = false" /> }

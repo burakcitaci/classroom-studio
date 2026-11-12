@@ -9,6 +9,7 @@ const createSchema = z.strictObject({ kind: z.enum(kinds), settings: settingsSch
 const fileSchema = z.strictObject({ edit: editSchema, context: documentContextInputSchema });
 const commitSchema = z.strictObject({ edit: editSchema, kind: z.enum(['Teacher', 'Ready']), acceptWarnings: z.boolean().default(false) });
 const restoreSchema = z.strictObject({ edit: editSchema });
+const renameSchema = z.strictObject({ name: z.string().trim().max(120), nameEdit: editSchema });
 
 @Controller('documents')
 export class DocumentsController {
@@ -51,5 +52,11 @@ export class DocumentsController {
   @Post(':id/versions/:version/restore')
   restore(@Param('id') id: string, @Param('version') version: string, @Body() body: unknown) {
     return this.store.restore(id, version, check(restoreSchema, body).edit);
+  }
+
+  @Patch(':id/versions/:version')
+  renameVersion(@Param('id') id: string, @Param('version') version: string, @Body() body: unknown) {
+    const { name, nameEdit } = check(renameSchema, body);
+    return this.store.renameSnapshot(id, version, name, nameEdit);
   }
 }

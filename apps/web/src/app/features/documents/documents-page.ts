@@ -7,7 +7,7 @@ import { TeacherDialog } from '../../shared/teacher-dialog/teacher-dialog';
 import { BrnButton } from '@spartan-ng/brain/button';
 import { Icon } from '../../shared/icon/icon';
 import { FormsModule } from '@angular/forms';
-import { kinds, type DocumentSummary } from '../../../../../../libs/contracts/src';
+import { type DocumentSummary } from '../../../../../../libs/contracts/src';
 
 @Component({
   selector: 'studio-documents-page',
@@ -20,12 +20,11 @@ export class DocumentsPage {
   private readonly workspace = inject(WorkspaceStore);
 
   protected get vm() { return this.workspace.view; }
-  protected readonly kinds = kinds;
   protected search = '';
   protected filter = 'All types';
   protected classFilter = 'all';
   protected showCreate = false;
-  protected createKind = 'Exam';
+  protected createKind = '';
   protected readonly copy = designCopy;
   protected statusFilter = 'all';
   protected get hasFilters() { return !!this.search || this.classFilter !== 'all' || this.filter !== 'All types' || this.statusFilter !== 'all'; }
@@ -33,6 +32,7 @@ export class DocumentsPage {
 
   protected openCreate() {
     this.createError.set('');
+    this.createKind = this.vm.documentTypes.items()[0]?.id ?? '';
     this.showCreate = true;
   }
 

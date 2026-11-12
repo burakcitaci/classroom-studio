@@ -1,5 +1,84 @@
 import { expect, test } from '@playwright/test';
 
+test('type table opens an editable sheet and deletion removes dropdown choices without changing documents', async ({ page }, info) => {
+  const title = 'Sheet lifecycle type';
+  const original = 'Use source materials to create application tasks.';
+  const type = await (await page.request.post('/api/document-types', { data: { title, guidance: original, audience: 'student' } })).json();
+  await page.goto('/?view=documents&lang=en');
+  await page.getByRole('button', { name: 'Create document', exact: true }).click();
+  const picker = page.getByRole('dialog').getByRole('combobox', { name: /^Document type/ });
+  const savedTypes = await (await page.request.get('/api/document-types')).json();
+  expect(await picker.locator('option').evaluateAll(options => options.map(option => option.value).sort())).toEqual(savedTypes.map(type => type.id).sort());
+  await picker.selectOption(type.id);
+  await page.getByRole('dialog').getByRole('button', { name: 'Create document', exact: true }).click();
+  await expect(page.getByLabel('What should Studio create?')).toBeVisible();
+  const documentId = new URL(page.url()).searchParams.get('document');
+  await page.getByRole('navigation', { name: 'Workspace', exact: true }).getByRole('button', { name: 'Document types', exact: true }).click();
+  await expect(page.getByRole('table')).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button', { name: title, exact: true }).click();
+  const sheet = page.getByRole('dialog', { name: title, exact: true });
+  await expect(sheet.locator('.drawer-panel')).toBeVisible();
+  await sheet.getByLabel('Reusable guidance', { exact: true }).fill('Updated reusable guidance for future documents.');
+  await sheet.getByRole('button', { name: 'Save type', exact: true }).click();
+  await expect(sheet).toHaveCount(0);
+  await page.reload();
+  await page.getByRole('button', { name: title, exact: true }).click();
+  await expect(sheet.getByLabel('Reusable guidance', { exact: true })).toHaveValue('Updated reusable guidance for future documents.');
+  await page.screenshot({ path: info.outputPath('document-type-sheet.png'), animations: 'disabled' });
+  await sheet.getByRole('button', { name: 'Delete type', exact: true }).click();
+  await expect(sheet.getByText('Remove this type from the selection?', { exact: false })).toBeVisible();
+  await sheet.getByRole('button', { name: 'Delete type', exact: true }).click();
+  await expect(sheet).toHaveCount(0);
+  await expect(page.getByRole('button', { name: title, exact: true })).toHaveCount(0);
+  const document = await (await page.request.get('/api/documents/' + documentId)).json();
+  expect(document.settings.brief.documentType.guidance).toBe(original);
+  await page.goto('/?view=documents&lang=en');
+  await page.getByRole('button', { name: 'Create document', exact: true }).click();
+  await expect(page.getByRole('dialog').locator('option[value="' + type.id + '"]')).toHaveCount(0);
+});
+
+test('an empty managed type list offers creation instead of hardcoded types', async ({ page }) => {
+  await page.route('**/api/document-types', route => route.request().method() === 'GET' ? route.fulfill({ json: [] }) : route.continue());
+  await page.goto('/?view=documents&lang=en');
+  await page.getByRole('button', { name: 'Create document', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('combobox').locator('option')).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: 'Create document', exact: true })).toBeDisabled();
+  await dialog.getByRole('button', { name: 'Manage document types', exact: true }).click();
+  await expect(page).toHaveURL(/view=types/);
+  await expect(page.getByRole('table')).toBeVisible();
+});
+
+test('saving a reusable type does not create a document; creation selects it from a dropdown', async ({ page }) => {
+  let documentPosts = 0;
+  page.on('request', request => {
+    if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/documents') documentPosts++;
+  });
+  await page.goto('/?view=documents&lang=en');
+  await page.getByRole('button', { name: 'Document types', exact: true }).click();
+  await page.getByRole('button', { name: 'Create type', exact: true }).click();
+  await page.getByLabel('Type name', { exact: true }).fill('Abitur practice');
+  await page.getByLabel('Reusable guidance', { exact: true }).fill('Create exam practice with clear tasks and points.');
+  await page.getByRole('button', { name: 'Save type', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Abitur practice', exact: true })).toBeVisible();
+  expect(documentPosts).toBe(0);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('table')).toBeVisible();
+  await page.getByRole('navigation', { name: 'Workspace', exact: true }).getByRole('button', { name: 'Documents', exact: true }).click();
+  await page.getByRole('button', { name: 'Create document', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('combobox', { name: /^Document type/ }).selectOption({ label: 'Abitur practice' });
+  await dialog.getByRole('button', { name: 'Create document', exact: true }).click();
+  await expect(page.getByLabel('What should Studio create?')).toBeVisible();
+  expect(documentPosts).toBe(1);
+  const id = new URL(page.url()).searchParams.get('document');
+  const saved = await (await page.request.get('/api/documents/' + id)).json();
+  expect(saved.settings.brief.documentType.title).toBe('Abitur practice');
+});
+
 test('teachers can save and reuse their own document guidance from Brief & Sources', async ({ page }) => {
   const doc = await (await page.request.post('/api/documents', { data: { kind: 'Exam' } })).json();
   await page.goto('/?document=' + doc.id + '&view=brief&lang=en');
@@ -8,7 +87,13 @@ test('teachers can save and reuse their own document guidance from Brief & Sourc
   await expect(page.getByLabel('Type name', { exact: true })).toHaveValue('Erwartungshorizont');
   await page.getByLabel('Type name', { exact: true }).fill('Marking guide browser test');
   await page.getByLabel('Reusable guidance', { exact: true }).fill('Give exact model answers and award points for each step.');
-  await page.getByRole('button', { name: 'Save and use type', exact: true }).click();
+  await page.getByRole('button', { name: 'Save type', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Marking guide browser test', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const typePicker = page.locator('studio-assessment-brief select').first();
+  await expect(typePicker).toHaveValue('Exam');
+  await typePicker.selectOption({ label: 'Marking guide browser test' });
   await page.getByLabel('What should Studio create?').fill('Geography, grade 5: continents.');
   await page.getByRole('button', { name: 'Save plan', exact: true }).click();
   await expect(page.getByText('Plan saved.', { exact: true })).toBeVisible();
@@ -19,5 +104,5 @@ test('teachers can save and reuse their own document guidance from Brief & Sourc
   expect(saved.settings.brief.documentType.audience).toBe('teacher');
   expect(saved.settings.brief.documentType.guidance).toContain('exact model answers');
   await page.getByRole('button', { name: 'Manage document types', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Marking guide browser test', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Marking guide browser test', exact: true })).toBeVisible();
 });

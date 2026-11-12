@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test';
+import { ensureDocumentTypes } from './type-fixtures.mjs';
+test.beforeEach(async ({ request }) => { await ensureDocumentTypes(request); });
 import { readFile } from 'node:fs/promises';
 import { pdf, readZip, word } from './fixtures.mjs';
 
@@ -9,6 +11,7 @@ test('complete assessment workflow survives reload and keeps teacher content out
   await expect(page.getByRole('heading', { name: 'Documents', exact: true })).toBeVisible();
   await expect(page.getByText('Demo mode', { exact: true }).filter({ visible: true })).toBeVisible();
   await page.getByRole('button', { name: 'Create document', exact: true }).click();
+  await page.getByRole('dialog').getByRole('combobox', { name: /^Document type/ }).selectOption({ label: 'Exam' });
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('dialog').getByRole('button', { name: 'Create document' }).click();
   await page.getByLabel('What should Studio create?').fill('A biology exam on ecosystems, food chains, fungi and pollination.');
@@ -121,7 +124,7 @@ test('complete assessment workflow survives reload and keeps teacher content out
 
   await page.getByRole('button', { name: 'Why these questions?', exact: true }).click();
   await page.getByRole('button', { name: /Draft generation.*Graph.*succeeded/ }).click();
-  await expect(page.getByText('assessment-v8')).toBeVisible();
+  await expect(page.getByText('assessment-v9')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open resulting version 1' })).toBeVisible();
   await page.locator('.audit-detail .evidence summary').all().then(async links => {
     for (const link of links) await link.click();

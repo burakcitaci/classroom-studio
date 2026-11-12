@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test';
+import { ensureDocumentTypes } from './type-fixtures.mjs';
+test.beforeEach(async ({ request }) => { await ensureDocumentTypes(request); });
 
 async function draftDocument(page, title = 'Ecosystems quiz') {
   const doc = await (await page.request.post('/api/documents', { data: { kind: 'Quiz' } })).json();

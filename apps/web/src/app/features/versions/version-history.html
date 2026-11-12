@@ -4,16 +4,16 @@
     @for (version of vm.revisions; track version.id) {
       <div class="history-row" [class.ready-version]="version.kind === 'Ready'">
         <span class="doc-icon"><studio-icon [name]="version.kind === 'AI' ? 'spark' : 'history'" /></span>
-        <div class="grow"><strong><ng-container i18n="@@ui_2da600bf9404">Version</ng-container> {{ version.number }} · {{ version.draft.title }}</strong><small>{{ time(version.created) }} · {{ points(version.draft) }} <ng-container i18n="@@ui_819f41f05837">points</ng-container></small></div>
+        <div class="grow">@if (version.name) { <strong class="version-custom-name">{{ version.name }}</strong> }<strong><ng-container i18n="@@ui_2da600bf9404">Version</ng-container> {{ version.number }} · {{ version.draft.title }}</strong><small>{{ time(version.created) }} · {{ points(version.draft) }} <ng-container i18n="@@ui_819f41f05837">points</ng-container></small></div>
         <span class="badge" [class.green]="version.kind === 'Ready'">{{ ui(version.kind) }}</span>
         <button class="btn small" (click)="vm.viewVersion(version)"><ng-container i18n="@@ui_933d4419bb90">Preview version</ng-container> {{ version.number }}</button>
-        <div class="history-actions button-row"><button class="btn ghost small" [disabled]="vm.busy" (click)="vm.restore(version)">{{ ui('Restore as working draft') }}</button><button class="btn ghost small" (click)="vm.export('student', 'docx', version)">{{ ui('Student Word') }}</button><button class="btn ghost small" [disabled]="!vm.draft" (click)="compare(version)"><studio-icon name="compare" />{{ copy.compare }}</button></div>
+        <div class="history-actions button-row"><button class="btn ghost small" (click)="editName(version)" [attr.aria-label]="copy.renameVersion + ' ' + version.number"><studio-icon name="edit" />{{ copy.renameVersion }}</button><button class="btn ghost small" [disabled]="vm.busy" (click)="vm.restore(version)">{{ ui('Restore as working draft') }}</button><button class="btn ghost small" (click)="vm.export('student', 'docx', version)">{{ ui('Student Word') }}</button><button class="btn ghost small" [disabled]="!vm.draft" (click)="compare(version)"><studio-icon name="compare" />{{ copy.compare }}</button></div>
       </div>
     } @empty { <studio-empty-state icon="history" [title]="copy.noVersions" [description]="ui('Saved versions will appear after your first generation or explicit save.')"><button class="btn" (click)="vm.selectTab('editor')">{{ ui('Open editor') }}</button></studio-empty-state> }
   </section>
   @if (vm.preview; as version) {
     <section class="panel snapshot"><div class="section-head"><div><div class="eyebrow muted"><ng-container i18n="@@ui_b33892fbddef">VERSION</ng-container> {{ version.number }} · {{ ui(version.kind).toUpperCase() }}</div>
-      <h2>{{ version.draft.title }}</h2><p>{{ version.draft.instructions }}</p></div>
+      <h2>{{ version.name || version.draft.title }}</h2><p>{{ version.draft.instructions }}</p></div>
       <button class="icon-button" i18n-aria-label="@@ui_5ea4651e0596" aria-label="Close version preview" (click)="vm.preview = undefined"><studio-icon name="x" /></button></div>
       <div class="button-row">
         <button class="btn small primary" [disabled]="vm.busy" (click)="vm.restore(version)" i18n="@@ui_111b3068e276">Restore as working draft</button>
@@ -23,7 +23,7 @@
         <button class="btn small" (click)="vm.export('teacher', 'print', version)" i18n="@@ui_8f3699ecf916">Teacher print view</button>
       </div>
       @for (section of version.draft.sections; track section.id) {
-        <div class="snapshot-section"><h3>{{ section.title }}</h3><p>{{ section.instructions }}</p>
+        <div class="snapshot-section"><h3>{{ normalizeHeading(section.title) }}</h3><p>{{ section.instructions }}</p>
           <ol>@for (question of section.questions; track question.id) {
             <li><strong>{{ question.prompt }}</strong> <span class="badge">{{ question.points }} <ng-container i18n="@@ui_4abdfc6d463e">pts</ng-container></span>
               <p>{{ question.answer }}</p><p>{{ question.rubric }}</p>
@@ -38,3 +38,11 @@
     </section>
   }
 </div>
+
+@if (renaming; as version) {
+  <studio-teacher-dialog [title]="copy.renameVersion" [description]="copy.nameHelp" [busy]="savingName" (closed)="renaming = undefined">
+    <form (ngSubmit)="saveName()"><label class="field">{{ copy.versionName }}<input name="version-name" [(ngModel)]="nameDraft" maxlength="120" [disabled]="savingName" [placeholder]="ui('Version') + ' ' + version.number"></label>
+      <div class="button-row dialog-actions"><button class="btn" type="button" [disabled]="savingName" (click)="renaming = undefined">{{ ui('Cancel') }}</button><button class="btn primary" type="submit" [disabled]="savingName">{{ copy.saveName }}</button></div>
+    </form>
+  </studio-teacher-dialog>
+}

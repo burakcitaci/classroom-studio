@@ -35,6 +35,6 @@ export class VersionComparison {
   private side(id: string): Side | undefined {
     if (id === 'working') return this.vm.draft ? { draft: this.vm.draft, settings: this.vm.settings, label: $localize`:@@ui_9b4b98750504:Working draft` } : undefined;
     const found = this.vm.revisions.find(row => row.id === id);
-    return found ? { ...found, label: $localize`:@@ui_03283ea975df:Version ` + found.number + ' · ' + found.kind } : undefined;
+    return found ? { ...found, label: $localize`:@@ui_03283ea975df:Version ` + found.number + (found.name ? ' · ' + found.name : '') + ' · ' + found.kind } : undefined;
   }
 }

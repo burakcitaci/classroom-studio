@@ -4,11 +4,11 @@
   <div class="field-grid compare-grid">
     <label class="field"><ng-container i18n="@@ui_743697cd2437">Earlier version</ng-container><select [(ngModel)]="vm.compareLeft"><option value="" i18n="@@ui_bd007d33c5e8">Choose a version</option>
       @if (vm.draft) { <option value="working" i18n="@@ui_9b4b98750504">Working draft</option> }
-      @for (version of vm.revisions; track version.id) { <option [value]="version.id"><ng-container i18n="@@ui_2da600bf9404">Version</ng-container> {{ version.number }} · {{ ui(version.kind) }}</option> }
+      @for (version of vm.revisions; track version.id) { <option [value]="version.id"><ng-container i18n="@@ui_2da600bf9404">Version</ng-container> {{ version.number }}{{ version.name ? ' · ' + version.name : '' }} · {{ ui(version.kind) }}</option> }
     </select></label>
     <label class="field"><ng-container i18n="@@ui_3a04b1f074cb">Later version</ng-container><select [(ngModel)]="vm.compareRight"><option value="" i18n="@@ui_bd007d33c5e8">Choose a version</option>
       @if (vm.draft) { <option value="working" i18n="@@ui_9b4b98750504">Working draft</option> }
-      @for (version of vm.revisions; track version.id) { <option [value]="version.id"><ng-container i18n="@@ui_2da600bf9404">Version</ng-container> {{ version.number }} · {{ ui(version.kind) }}</option> }
+      @for (version of vm.revisions; track version.id) { <option [value]="version.id"><ng-container i18n="@@ui_2da600bf9404">Version</ng-container> {{ version.number }}{{ version.name ? ' · ' + version.name : '' }} · {{ ui(version.kind) }}</option> }
     </select></label>
   </div>
   @if (diff; as changes) {

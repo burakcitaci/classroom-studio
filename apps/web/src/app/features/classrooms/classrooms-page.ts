@@ -4,7 +4,7 @@ import { ui } from '../../core/i18n/ui-messages';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
-  kinds, type Brief, type Classroom, type ClassroomDetail, type ClassroomInput, type ClassroomSummary,
+  type Brief, type Classroom, type ClassroomDetail, type ClassroomInput, type ClassroomSummary,
   type DocumentContextInput, type DocumentSummary, type Lesson, type LessonInput,
 } from '../../../../../../libs/contracts/src';
 import { BrnButton } from '@spartan-ng/brain/button';
@@ -46,7 +46,6 @@ export class ClassroomsPage {
   private readonly api = inject(ClassroomsApi);
   private loadId = 0;
 
-  protected readonly kinds = kinds;
   protected get customTypes() { return this.workspace.documentTypes.items(); }
   protected readonly search = signal('');
   protected readonly archived = signal(false);
@@ -135,9 +134,11 @@ export class ClassroomsPage {
     this.edit({ kind: 'lesson', classId, id: lesson?.id, value });
   }
 
+  protected manageTypes() { this.close(); void this.workspace.openTypes(true); }
+
   protected newDocument(classroom: Classroom, lesson?: Lesson) {
     this.edit({ kind: 'document', context: { classId: classroom.id, lessonId: lesson?.id ?? null },
-      label: lesson?.title ?? classroom.title, value: 'Exam' });
+      label: lesson?.title ?? classroom.title, value: this.customTypes[0]?.id ?? '' });
   }
 
   private edit(form: Form) {

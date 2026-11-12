@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { Evidence, Settings } from '../../../../libs/contracts/src/index.js';
 import type { Chunk, SourceRow } from '../persistence/studio-store.js';
+import { assessmentRequirements, isReferenceBoilerplate, isTaskOnlyPassage } from '../generation/assessment/assessment-quality.js';
 
 export interface Hit { id: string; score: number }
 export interface VectorIndex {
@@ -69,20 +70,35 @@ export async function retrieve(
       sourceId: source.id, ordinal: chunk.ordinal, name: source.name, text: chunk.text, use,
     });
     if (source.role !== 'content' && evidence.filter(item => item.use === 'format').length < 8) {
-      evidence.push(...chunks.slice(0, 2).map(chunk => map(chunk, 'format')));
+      evidence.push(...chunks.filter(chunk => !isReferenceBoilerplate(chunk.text)).slice(0, 2).map(chunk => map(chunk, 'format')));
     }
     if (source.role === 'format') continue;
     if (source.type === 'note') {
       evidence.push(...chunks.slice(0, 2).map(chunk => map(chunk, 'notes')));
     } else if (settings.rag !== 'Off' && chunks.length) {
       indexed.push({ sourceId: source.id, chunks });
-      eligible.push(...chunks);
-      corpus.push(...chunks.map(chunk => map(chunk, 'content')));
+      const substantive = chunks.filter(chunk => !isReferenceBoilerplate(chunk.text) &&
+        (settings.brief.documentType?.audience === 'teacher' || !isTaskOnlyPassage(chunk.text)));
+      eligible.push(...substantive);
+      corpus.push(...substantive.map(chunk => map(chunk, 'content')));
     }
   }
   if (settings.rag === 'Off' || corpus.length === 0) return evidence;
+  const focused = [settings.brief.subject, settings.brief.topics, extraQuery].filter(Boolean).join(' ');
+  // A broad exam brief contains pedagogy rather than a chapter topic. Sample
+  // across the usable text instead of treating the book's preface as evidence.
+  if (assessmentRequirements(settings.brief) && !focused && /angehängten\s+pdf|attached\s+(?:pdf|document)|bereitgestellten\s+materialien/i.test(settings.brief.brief) && corpus.length > settings.topK) {
+    const remaining = [...corpus];
+    const coverage: Evidence[] = [];
+    for (let i = 0; i < settings.topK; i++) {
+      const position = Math.min(remaining.length - 1, Math.floor(i * corpus.length / settings.topK) - coverage.length);
+      const [item] = remaining.splice(Math.max(0, position), 1);
+      coverage.push({ ...item, path: ['Broad assessment: substantive source coverage', title(item)] });
+    }
+    return [...evidence, ...coverage];
+  }
   for (const entry of indexed) await index.prepare(docId, entry.sourceId, entry.chunks);
-  const query = [settings.brief.subject, settings.brief.topics, extraQuery, settings.brief.brief].filter(Boolean).join(' ').slice(0, 4200);
+  const query = [focused, settings.brief.brief].filter(Boolean).join(' ').slice(0, 4200);
   const vector = await index.search(docId, indexed.map(item => item.sourceId), query, 32, eligible);
   const byId = new Map(corpus.map(item => [item.id, item]));
   const tokenLists = new Map(corpus.map(item => [item.id, terms(item.text)]));
