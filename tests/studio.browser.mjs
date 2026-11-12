@@ -19,7 +19,8 @@ test('complete assessment workflow survives reload and keeps teacher content out
   await page.getByRole('button', { name: 'View audit' }).click();
   await page.getByRole('button', { name: /Draft generation.*failed/ }).click();
   await expect(page.getByText('No useful content excerpts', { exact: false }).last()).toBeVisible();
-  await page.getByRole('button', { name: 'Brief & sources' }).click();
+  await page.keyboard.press('Escape');
+  await page.getByRole('tab', { name: 'Plan', exact: true }).click();
 
   const materials = await readFile('fixtures/teaching-notes.txt');
   const exam = await readFile('fixtures/sample-exam.txt', 'utf8');
@@ -35,17 +36,17 @@ test('complete assessment workflow survives reload and keeps teacher content out
   await expect(page.getByText('arrows show the direction of energy transfer', { exact: false }).first()).toBeVisible();
   await page.getByRole('button', { name: 'Paste notes' }).click();
   await page.getByLabel('Teaching notes', { exact: true }).fill('Mention energy transfer, producers, and the role of fungi.');
-  await page.getByRole('button', { name: 'Editor', exact: true }).click();
-  await page.getByRole('button', { name: 'Brief & sources' }).click();
+  await page.getByRole('tab', { name: 'Editor', exact: true }).click();
+  await page.getByRole('tab', { name: 'Plan', exact: true }).click();
   await expect(page.getByLabel('Teaching notes', { exact: true })).toHaveValue('Mention energy transfer, producers, and the role of fungi.');
   await page.getByRole('button', { name: 'Add notes' }).click();
   await expect(page.getByText('Pasted notes', { exact: true })).toBeVisible();
   await page.getByRole('radio', { name: /Graph/ }).check();
   await page.getByRole('button', { name: 'Generate draft' }).click();
-  await expect(page.getByText('Progress is saved.', { exact: false })).toBeVisible();
+  await expect(page.locator('[data-sonner-toast]').getByText('Progress is saved.', { exact: false })).toBeVisible();
   await page.reload();
-  await expect(page.getByText('Progress is saved.', { exact: false })).toBeVisible();
-  await page.getByRole('button', { name: 'Open editor' }).click();
+  await expect(page.locator('[data-sonner-toast]').getByText('Progress is saved.', { exact: false })).toBeVisible();
+  await page.locator('[data-sonner-toast]').getByRole('button', { name: 'Open editor' }).click();
   await expect(page.getByRole('heading', { name: 'Assessment editor' })).toBeVisible();
   await expect(page.locator('.teacher-fields .evidence').first()).toBeVisible();
   await page.locator('.teacher-fields .evidence summary').first().click();
@@ -59,22 +60,21 @@ test('complete assessment workflow survives reload and keeps teacher content out
   await page.getByLabel('Private teacher notes').fill('PRIVATE_NOTES_BROWSER');
   await page.getByRole('button', { name: 'Move question down' }).first().click();
   await expect(page.getByText('Saved locally', { exact: false })).toBeVisible();
-  await page.getByRole('button', { name: 'Compare with previous' }).click();
+  await page.getByRole('tab', { name: 'History', exact: true }).click();
+  await page.getByRole('button', { name: 'Compare with current', exact: true }).first().click();
   await expect(page.getByText('Reordered', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('Question · Points · Answer · Scoring', { exact: false })).toBeVisible();
   await expect(page.getByText('Answer every question in your own words.', { exact: true })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Editor', exact: true }).click();
+  await page.getByRole('tab', { name: 'Editor', exact: true }).click();
   await page.getByRole('button', { name: 'Save version' }).click();
   await expect(page.getByText('Version 2 saved.')).toBeVisible();
   await expect(page.locator('[data-sonner-toast][data-type="success"]').filter({ hasText: 'Version 2 saved.' })).toBeVisible();
   await expect(page.locator('main > .message.good')).toHaveCount(0);
-  const workspaceNav = page.getByRole('navigation', { name: 'Document workspace' });
-  await expect(workspaceNav.getByRole('button', { name: 'Organize', exact: true })).toBeVisible();
-  await expect(workspaceNav.getByRole('button', { name: 'Export', exact: true })).toBeVisible();
-  await expect(page.locator('.document-header').getByRole('button', { name: 'Export', exact: true })).toHaveCount(0);
+  const headerActions = page.locator('.document-header');
+  await expect(headerActions.getByRole('button', { name: 'Organize', exact: true })).toBeVisible();
+  await expect(headerActions.getByRole('button', { name: 'Export', exact: true })).toBeVisible();
   const previewButton = page.getByRole('button', { name: 'Preview', exact: true });
-  expect(await previewButton.evaluate(button => button.nextElementSibling?.textContent.trim())).toBe('Mark as ready');
   const studentPreview = page.waitForEvent('popup');
   await previewButton.click();
   const preview = await studentPreview;
@@ -119,7 +119,7 @@ test('complete assessment workflow survives reload and keeps teacher content out
   await expect(exportDialog).toBeHidden();
   await expect(exportButton).toBeFocused();
 
-  await page.getByRole('button', { name: 'Generation audit', exact: true }).click();
+  await page.getByRole('button', { name: 'Why these questions?', exact: true }).click();
   await page.getByRole('button', { name: /Draft generation.*Graph.*succeeded/ }).click();
   await expect(page.getByText('assessment-v8')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open resulting version 1' })).toBeVisible();
@@ -129,7 +129,7 @@ test('complete assessment workflow survives reload and keeps teacher content out
   await expect(page.locator('.graph-path').first()).toBeVisible();
   await page.getByRole('button', { name: 'Open resulting version 1' }).click();
   await expect(page.getByRole('heading', { name: 'Version history' })).toBeVisible();
-  await page.getByRole('button', { name: 'Restore as working draft' }).click();
+  await page.locator('.snapshot').getByRole('button', { name: 'Restore as working draft' }).click();
   await expect(page.getByText('Version 1 restored as a new working revision.')).toBeVisible();
   await expect(page.getByLabel('Student instructions')).not.toHaveValue('Answer every question in your own words.');
   const oldPrompt = await page.getByLabel('Question text').first().inputValue();
@@ -148,7 +148,8 @@ test('mobile library and example workspace fit the viewport and automatically se
   await expect(page.getByRole('heading', { name: 'Documents', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
   await page.screenshot({ path: info.outputPath('mobile-library.png'), fullPage: true });
-  await page.getByRole('button', { name: 'Try a sample exam' }).click();
+  await page.getByLabel('More options', { exact: true }).click();
+  await page.getByRole('button', { name: 'Try a sample exam' }).filter({ visible: true }).click();
   await expect(page.getByText('Indexed', { exact: true })).toHaveCount(2);
   await expect(page.getByRole('radio', { name: /Basic/ })).toBeChecked();
   await expect(page.getByLabel('Role for Sample exam.txt')).toHaveValue('format');
@@ -181,18 +182,19 @@ test('long exam title leaves room for Ollama and draft actions', async ({ page }
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/?document=' + doc.id);
   const heading = page.getByRole('heading', { name: title, exact: true });
-  const model = page.getByLabel('Ollama model', { exact: true });
+  const model = page.getByRole('combobox', { name: 'Ollama model', exact: true });
   const generate = page.getByRole('button', { name: 'Generate new draft', exact: true });
   await expect(heading).toBeVisible();
+  await page.locator('.model-menu summary').click();
   await expect(model).toHaveValue('llama3.1:8b');
   await expect(generate).toBeEnabled();
-  expect(Math.abs((await model.boundingBox()).y - (await generate.boundingBox()).y)).toBeLessThan(4);
+  await expect(generate).toBeVisible();
   await page.screenshot({ path: info.outputPath('desktop-workspace.png') });
 
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
-  const modelBox = await model.boundingBox();
-  expect((await generate.boundingBox()).y).toBeGreaterThanOrEqual(modelBox.y + modelBox.height);
+  await expect(model).toBeVisible();
+  await expect(generate).toBeVisible();
   await page.screenshot({ path: info.outputPath('mobile-workspace.png') });
   await page.getByRole('button', { name: 'Export', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Export document' })).toBeVisible();

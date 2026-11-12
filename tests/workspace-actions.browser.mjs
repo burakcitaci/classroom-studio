@@ -14,9 +14,8 @@ test('direct preview saves the latest draft and toast actions resolve a save con
   await page.goto('/?document=' + created.id + '&view=editor&lang=en');
   const navigation = page.getByRole('navigation', { name: 'Document workspace' });
   await expect(navigation).toBeVisible();
-  expect((await navigation.getByRole('button').allTextContents()).map(text => text.trim().replace(/\s+/g, ' '))).toEqual([
-    'Brief & sources', 'Editor', 'History', 'Compare', 'Generation audit', 'Organize', 'Export',
-  ]);
+  expect(await navigation.getByRole('tab').allTextContents()).toEqual(['Plan', 'Editor', 'History']);
+  await expect(page.locator('.document-header').getByRole('button', { name: 'Export', exact: true })).toBeVisible();
   await page.getByLabel('Student instructions').fill('LATEST_PREVIEW_INSTRUCTIONS');
   const popup = page.waitForEvent('popup');
   await page.getByRole('button', { name: 'Preview', exact: true }).click();

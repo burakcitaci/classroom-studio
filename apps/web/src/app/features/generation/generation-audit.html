@@ -41,5 +41,5 @@
         </div>
       }
     </div>
-  } @empty { <p class="muted" i18n="@@ui_ab2e5dbb81c3">Generation attempts will appear here, including failed attempts.</p> }
+  } @empty { <studio-empty-state icon="audit" [title]="copy.noRuns" [description]="ui('Generation attempts will appear here, including failed attempts.')" /> }
 </section>

@@ -1,5 +1,4 @@
-import { DocumentTypesManager } from '../document-types/document-types-manager';
-import type { DocumentType } from '../../../../../../libs/contracts/src';
+import { PageHeader, StatusBadge, StudioButton, designCopy } from '../../shared/studio-ui';
 import { interfaceLocale } from '../../core/i18n/locale';
 import { ui } from '../../core/i18n/ui-messages';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
@@ -12,7 +11,7 @@ import { kinds, type DocumentSummary } from '../../../../../../libs/contracts/sr
 
 @Component({
   selector: 'studio-documents-page',
-  imports: [BrnButton, FormsModule, Icon, TeacherDialog, DocumentTypesManager],
+  imports: [BrnButton, FormsModule, Icon, TeacherDialog, PageHeader, StatusBadge, StudioButton],
   templateUrl: './documents-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -27,8 +26,9 @@ export class DocumentsPage {
   protected classFilter = 'all';
   protected showCreate = false;
   protected createKind = 'Exam';
-  protected showTypes = false;
-  protected async useType(type: DocumentType) { this.showTypes = false; await this.vm.create(type.id); }
+  protected readonly copy = designCopy;
+  protected statusFilter = 'all';
+  protected get hasFilters() { return !!this.search || this.classFilter !== 'all' || this.filter !== 'All types' || this.statusFilter !== 'all'; }
   protected readonly createError = signal('');
 
   protected openCreate() {
@@ -44,6 +44,7 @@ export class DocumentsPage {
 
   protected clearFilters() {
     this.search = '';
+    this.statusFilter = 'all';
     this.classFilter = 'all';
     this.filter = 'All types';
   }
@@ -56,6 +57,7 @@ export class DocumentsPage {
   protected get filtered() {
     const term = this.search.toLowerCase().trim();
     return this.vm.list.filter(item => (this.filter === 'All types' || (item.documentType?.id === this.filter || item.kind === this.filter)) &&
+      (this.statusFilter === 'all' || item.status === this.statusFilter) &&
       (this.classFilter === 'all' || this.classFilter === (item.context?.classId ?? 'unfiled')) &&
       [item.title, item.subject, item.grade, item.context?.classTitle ?? '', item.context?.lessonTitle ?? '']
         .some(value => value.toLowerCase().includes(term)));

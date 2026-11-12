@@ -1,5 +1,6 @@
 @if (vm.draft; as assessment) {
-  <div class="stack">
+  <div class="editor-layout">
+  <div class="stack editor-main">
     @if (assessment.warnings.length) {
       <section class="panel review-warnings" id="draft-review-notes" tabindex="-1" aria-labelledby="draft-review-heading">
         <h3 id="draft-review-heading"><studio-icon name="warning" /><span i18n="@@reviewNotesHeading">Review notes</span> <span class="count">{{ assessment.warnings.length }}</span></h3>
@@ -27,11 +28,11 @@
         <p i18n="@@ui_434846ac7551">Edits save as you work. Save a version to keep a snapshot.</p></div><span class="badge green">{{ points(assessment) }} <ng-container i18n="@@ui_25d11081583e">total points</ng-container></span></div>
       <div class="button-row">
         <button class="btn small" (click)="vm.saveVersion('Teacher')" [disabled]="vm.busy" i18n="@@ui_80cb5875f9de">Save version</button>
-        <button class="btn small" (click)="vm.compareDraft()" [disabled]="!vm.revisions.length"><studio-icon name="compare" /> <ng-container i18n="@@ui_45bb083ac322">Compare with previous</ng-container></button>
+
         <button class="btn small" type="button" (click)="vm.export(vm.settings.brief.documentType?.audience === 'teacher' ? 'teacher' : 'student', 'print')" [disabled]="vm.busy" [title]="vm.previewTitle">
           <studio-icon name="preview" /><ng-container i18n="@@previewDocument">Preview</ng-container>
         </button>
-        <button class="btn small primary" (click)="markReady()" [disabled]="vm.busy" i18n="@@ui_70929d020540">Mark as ready</button>
+        <button class="btn small rail-toggle" [attr.aria-expanded]="showRail()" aria-controls="editor-summary" (click)="showRail.set(!showRail())"><studio-icon name="audit" />{{ copy.summary }}</button>
       </div>
       <label class="field mt-5"><ng-container i18n="@@ui_3859bdaa8c6f">Document title</ng-container><input maxlength="180" [(ngModel)]="assessment.title" (ngModelChange)="vm.change()"></label>
       <label class="field"><ng-container i18n="@@ui_6fd9abeecad0">Student instructions</ng-container><textarea rows="2" maxlength="2500" [(ngModel)]="assessment.instructions" (ngModelChange)="vm.change()"></textarea></label>
@@ -46,10 +47,10 @@
         </div>
         <label class="field"><ng-container i18n="@@ui_58c386387936">Section title</ng-container><input maxlength="140" [(ngModel)]="section.title" (ngModelChange)="vm.change()"></label>
         <label class="field"><ng-container i18n="@@ui_f2709b2a749d">Section instructions</ng-container><textarea rows="2" maxlength="1500" [(ngModel)]="section.instructions" (ngModelChange)="vm.change()"></textarea></label>
-        <div class="questions">
+        <div class="questions" cdkDropList [cdkDropListData]="section.questions" (cdkDropListDropped)="drop($event, section)">
           @for (question of section.questions; track question.id; let index = $index) {
-            <article class="question">
-              <div class="question-header"><span class="question-number">{{ index + 1 }}</span><strong><ng-container i18n="@@ui_002ff598115d">Question</ng-container> {{ index + 1 }}</strong><span class="grow"></span>
+            <article class="question" cdkDrag (focusin)="selectedQuestion.set(question.id)">
+              <div class="question-header"><button type="button" class="icon-button drag-handle" cdkDragHandle [attr.aria-label]="copy.drag" tabindex="-1"><studio-icon name="grip" /></button><span class="question-number">{{ index + 1 }}</span><strong><ng-container i18n="@@ui_002ff598115d">Question</ng-container> {{ index + 1 }}</strong><span class="grow"></span><span class="badge">{{ question.points }} {{ ui('pts') }}</span>
                 <button class="icon-button" [disabled]="index === 0" i18n-aria-label="@@ui_3a0cbeabac44" aria-label="Move question up" (click)="move(section, index, -1)"><studio-icon name="up" /></button>
                 <button class="icon-button" [disabled]="index + 1 === section.questions.length" i18n-aria-label="@@ui_9261fd8e95ab" aria-label="Move question down" (click)="move(section, index, 1)"><studio-icon name="bottom" /></button>
                 <button class="icon-button" i18n-aria-label="@@ui_d1ca96e407f1" aria-label="Remove question" (click)="removeQuestion(section, index)"><studio-icon name="trash" /></button>
@@ -89,6 +90,15 @@
         <label class="field"><span class="sr-only" i18n="@@ui_3fa69a4b965d">Private teacher notes</span><textarea rows="3" maxlength="3500" [(ngModel)]="assessment.teacherNotes" (ngModelChange)="vm.change()"></textarea></label>
       </section>
     }
+  </div>
+  <aside class="editor-rail panel" id="editor-summary" [class.expanded]="showRail()" [attr.aria-label]="copy.summary">
+    <div class="eyebrow muted">{{ copy.summary }}</div><h2>{{ ui('Working draft') }}</h2>
+    <dl class="draft-totals"><div><dt>{{ ui('Total points') }}</dt><dd>{{ points(assessment) }}</dd></div><div><dt>{{ ui('Questions') }}</dt><dd>{{ questions.length }}</dd></div></dl>
+    @if (assessment.warnings.length) { <a class="rail-warning" href="#draft-review-notes" (click)="$event.preventDefault(); revealReviewNotes()"><studio-icon name="warning" />{{ assessment.warnings.length }} <span i18n="@@reviewNotesHeading">Review notes</span></a> }
+    <div class="rail-evidence"><h3>{{ ui('Facts and source evidence') }}</h3>
+      @if (focusedQuestion; as question) { <p class="rail-question">{{ question.prompt }}</p>@for (source of evidenceFor(assessment, question); track source.id) { <details class="evidence"><summary><studio-icon name="paperclip" />{{ source.name }}</summary><blockquote>{{ source.text }}</blockquote></details> } @empty { <p>{{ ui('No excerpts recorded.') }}</p> } }
+    </div>
+  </aside>
   </div>
 } @else {
   <div class="panel empty-state"><span class="empty-icon"><studio-icon name="edit" /></span><h2 i18n="@@ui_edae8b53d2bc">No draft yet</h2>

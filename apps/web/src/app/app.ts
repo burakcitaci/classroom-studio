@@ -7,10 +7,15 @@ import { DocumentsPage } from './features/documents/documents-page';
 import { DocumentWorkspace } from './features/workspace/document-workspace';
 import { WorkspaceStore } from './features/workspace/workspace-store';
 import { Icon } from './shared/icon/icon';
+import { DocumentTypesManager } from './features/document-types/document-types-manager';
+import { TeacherDialog } from './shared/teacher-dialog/teacher-dialog';
+import { SaveIndicator, Skeleton, designCopy } from './shared/studio-ui';
+import { NgTemplateOutlet } from '@angular/common';
+import type { DocumentType } from '../../../../libs/contracts/src';
 
 @Component({
   selector: 'studio-root',
-  imports: [ClassroomsPage, DocumentsPage, DocumentWorkspace, Icon, StudioToaster],
+  imports: [ClassroomsPage, DocumentsPage, DocumentWorkspace, Icon, StudioToaster, DocumentTypesManager, TeacherDialog, SaveIndicator, Skeleton, NgTemplateOutlet],
   providers: [WorkspaceStore],
   templateUrl: './app.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -22,6 +27,19 @@ export class App implements OnInit {
 
   protected readonly locale = interfaceLocale;
   protected readonly switchingLanguage = signal(false);
+  protected readonly copy = designCopy;
+  protected readonly mobileMenu = signal(false);
+  protected readonly showTypes = signal(false);
+  protected readonly pendingLocale = signal<InterfaceLocale | null>(null);
+  protected readonly classTrail = signal<{ classTitle: string; lessonTitle?: string } | null>(null);
+
+  protected navigate(section: 'classes' | 'documents') {
+    this.mobileMenu.set(false);
+    if (section === 'classes') void this.vm.openClass(undefined, undefined, true);
+    else void this.vm.open(undefined, 'brief', true);
+  }
+
+  protected async useType(type: DocumentType) { this.showTypes.set(false); await this.vm.create(type.id); }
 
   protected async changeLanguage(value: string) {
     if ((value !== 'en' && value !== 'de') || value === this.locale || this.switchingLanguage()) return;
@@ -30,11 +48,18 @@ export class App implements OnInit {
       this.vm.error = ui('Close the current form or add your notes before switching language.');
       return;
     }
+    this.pendingLocale.set(value as InterfaceLocale);
+  }
+
+  protected async confirmLanguage() {
+    const value = this.pendingLocale();
+    if (!value) return;
     this.switchingLanguage.set(true);
-    if (await this.workspace.prepareLocaleChange()) rememberLocale(value as InterfaceLocale);
+    if (await this.workspace.prepareLocaleChange()) rememberLocale(value);
     else {
       this.vm.error ||= ui('Could not switch language. Save or resolve your changes and try again.');
       this.switchingLanguage.set(false);
+      this.pendingLocale.set(null);
     }
   }
 

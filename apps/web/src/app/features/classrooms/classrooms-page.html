@@ -1,5 +1,5 @@
 @if (loading()) {
-  <div class="panel loading" role="status"><span class="spinner"></span> <ng-container i18n="@@ui_ecc16576ff1b">Opening classes…</ng-container></div>
+  <studio-skeleton [label]="ui('Opening classes…')" />
 } @else {
   @if (error()) {
     <div class="message danger" role="alert">
@@ -22,9 +22,10 @@
       <section class="first-class">
         <span class="empty-icon"><studio-icon name="book" /></span>
         <div>
-          <h2 i18n="@@ui_4367c3c082b5">No classes yet</h2>
+          <h2>{{ copy.createClass }}</h2>
           <p i18n="@@ui_98caa965f0e1">Create a class to keep its lessons, learning goals, and documents together.</p>
-          <button class="btn small" type="button" (click)="newClass(true)"><ng-container i18n="@@ui_5265715c8694">Use the Biology example</ng-container> <studio-icon name="arrow" /></button>
+          <div class="button-row"><button class="btn" (click)="sample()">{{ ui('Try a sample exam') }}</button></div>
+          <button class="link-button mt-3" type="button" (click)="newClass(true)"><ng-container i18n="@@ui_5265715c8694">Use the Biology example</ng-container> <studio-icon name="arrow" /></button>
         </div>
       </section>
     } @else if (classes().length) {
@@ -41,11 +42,12 @@
         <div class="class-rows">
           @for (item of filtered(); track item.id) {
             <button type="button" class="class-row" (click)="openClass(item.id)">
-              <span class="doc-icon"><studio-icon name="book" /></span>
+              <span class="doc-icon subject-icon" [style.--subject-hue]="subjectHue(item.subject)"><studio-icon name="book" /></span>
               <span class="class-label">
                 <strong>{{ item.title }}</strong>
-                <small>{{ item.subject }} · {{ item.grade }}{{ item.schoolYear ? ' · ' + item.schoolYear : '' }}</small>
+                <small><span class="subject-chip" [style.--subject-hue]="subjectHue(item.subject)">{{ item.subject }}</span> {{ item.grade }}{{ item.schoolYear ? ' · ' + item.schoolYear : '' }}</small>
               </span>
+              <span class="next-lesson"><span class="eyebrow">{{ copy.next }}</span>@if (nextLessons()[item.id]; as next) { <strong>{{ next.title }}</strong><small>{{ next.date ? dateLabel(next.date) : '' }}</small> } @else { <small>{{ copy.noLesson }}</small> }</span>
               <span class="row-counts">
                 <span class="row-count"><studio-icon name="book" /> {{ item.lessonCount }} {{ item.lessonCount === 1 ? ui('lesson') : ui('lessons') }}</span>
                 <span class="row-count"><studio-icon name="docs" /> {{ item.documentCount }} {{ item.documentCount === 1 ? ui('document') : ui('documents') }}</span>
@@ -128,15 +130,15 @@
         <section class="panel">
           <div class="section-head"><div><h2><ng-container i18n="@@ui_cb9ce97bfc9a">Lessons</ng-container> <span class="count">{{ data.lessons.length }}</span></h2></div></div>
           <div class="lesson-list">
-            @for (item of data.lessons; track item.id; let number = $index) {
-              <button type="button" class="lesson-row" (click)="openClass(data.classroom.id, item.id)">
+            @for (item of sortedLessons(); track item.id; let number = $index) {
+              <div class="lesson-timeline-row"><button type="button" class="lesson-row" (click)="openClass(data.classroom.id, item.id)">
                 <span class="lesson-number">{{ number + 1 }}</span>
                 <span class="lesson-label">
                   <strong>{{ item.title }}</strong>
                   <small>{{ item.date ? dateLabel(item.date) : ui('Unscheduled') }} · {{ item.documentCount }} {{ item.documentCount === 1 ? ui('document') : ui('documents') }}</small>
                 </span>
                 <studio-icon name="chevron" />
-              </button>
+              </button>@if (!data.classroom.archived) { <button class="btn ghost small lesson-create" (click)="newDocument(data.classroom, item)" [attr.aria-label]="ui('Create document') + ': ' + item.title"><studio-icon name="plus" /><span>{{ ui('Create document') }}</span></button> }</div>
             } @empty {
               <div class="lessons-empty">
                 <span class="empty-icon"><studio-icon name="book" /></span>

@@ -14,5 +14,6 @@ export class TeacherDialog {
   readonly title = input.required<string>();
   readonly description = input('');
   readonly busy = input(false);
+  readonly placement = input<'dialog' | 'drawer' | 'navigation'>('dialog');
   readonly closed = output<void>();
 }

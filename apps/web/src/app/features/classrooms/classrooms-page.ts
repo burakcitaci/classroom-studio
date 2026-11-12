@@ -1,6 +1,7 @@
+import { designCopy, Skeleton } from '../../shared/studio-ui';
 import { interfaceLocale } from '../../core/i18n/locale';
 import { ui } from '../../core/i18n/ui-messages';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
   kinds, type Brief, type Classroom, type ClassroomDetail, type ClassroomInput, type ClassroomSummary,
@@ -27,12 +28,18 @@ const example: ClassroomInput = {
 
 @Component({
   selector: 'studio-classrooms-page',
-  imports: [BrnButton, FormsModule, Icon, TeacherDialog, ClassDocuments],
+  imports: [BrnButton, FormsModule, Icon, TeacherDialog, ClassDocuments, Skeleton],
   templateUrl: './classrooms-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ClassroomsPage {
   protected readonly ui = ui;
+  protected readonly copy = designCopy;
+  readonly locationChange = output<{ classTitle: string; lessonTitle?: string } | null>();
+  protected readonly nextLessons = signal<Record<string, Lesson | undefined>>({});
+  protected readonly sortedLessons = computed(() => [...(this.detail()?.lessons ?? [])].sort((a, b) => (a.date ?? '9999').localeCompare(b.date ?? '9999')));
+  protected subjectHue(subject: string) { return [...subject].reduce((hue, letter) => (hue * 31 + letter.charCodeAt(0)) % 360, 160); }
+  protected sample() { void this.workspace.create('Exam', true); }
   readonly classId = input<string>();
   readonly lessonId = input<string>();
   private readonly workspace = inject(WorkspaceStore);
@@ -68,6 +75,7 @@ export class ClassroomsPage {
   constructor() {
     effect(() => {
       const id = this.classId();
+      this.lessonId();
       untracked(() => void this.load(id));
     });
   }
@@ -80,16 +88,32 @@ export class ClassroomsPage {
     try {
       if (id) {
         const detail = await this.api.detail(id);
-        if (token === this.loadId) this.detail.set(detail);
+        if (token === this.loadId) {
+          this.detail.set(detail);
+          this.locationChange.emit({ classTitle: detail.classroom.title, lessonTitle: detail.lessons.find(item => item.id === this.lessonId())?.title });
+        }
       } else {
         const list = await this.api.list();
-        if (token === this.loadId) this.classes.set(list);
+        if (token === this.loadId) {
+          this.classes.set(list);
+          this.locationChange.emit(null);
+          void this.loadNextLessons(list, token);
+        }
       }
     } catch (error) {
       if (token === this.loadId) this.error.set(this.message(error));
     } finally {
       if (token === this.loadId) this.loading.set(false);
     }
+  }
+
+  private async loadNextLessons(list: ClassroomSummary[], token: number) {
+    const today = new Date().toLocaleDateString('sv-SE');
+    const rows = await Promise.all(list.filter(item => !item.archived && item.lessonCount).map(async item => {
+      try { const detail = await this.api.detail(item.id); return [item.id, detail.lessons.filter(lesson => lesson.date && lesson.date >= today).sort((a, b) => a.date!.localeCompare(b.date!))[0]] as const; }
+      catch { return [item.id, undefined] as const; }
+    }));
+    if (token === this.loadId) this.nextLessons.set(Object.fromEntries(rows));
   }
 
   protected openClass(id?: string, lesson?: string) { void this.workspace.openClass(id, lesson, true); }

@@ -2,13 +2,14 @@
   <section class="panel"><div class="section-head"><div><div class="eyebrow muted" i18n="@@ui_3a49b12babea">SAVED SNAPSHOTS</div><h2 i18n="@@ui_91f86581f16b">Version history</h2>
     <p i18n="@@ui_f99ef0f26f86">AI drafts, explicit saves, ready versions and restorations.</p></div><span class="count">{{ vm.revisions.length }}</span></div>
     @for (version of vm.revisions; track version.id) {
-      <div class="history-row">
+      <div class="history-row" [class.ready-version]="version.kind === 'Ready'">
         <span class="doc-icon"><studio-icon [name]="version.kind === 'AI' ? 'spark' : 'history'" /></span>
         <div class="grow"><strong><ng-container i18n="@@ui_2da600bf9404">Version</ng-container> {{ version.number }} · {{ version.draft.title }}</strong><small>{{ time(version.created) }} · {{ points(version.draft) }} <ng-container i18n="@@ui_819f41f05837">points</ng-container></small></div>
         <span class="badge" [class.green]="version.kind === 'Ready'">{{ ui(version.kind) }}</span>
         <button class="btn small" (click)="vm.viewVersion(version)"><ng-container i18n="@@ui_933d4419bb90">Preview version</ng-container> {{ version.number }}</button>
+        <div class="history-actions button-row"><button class="btn ghost small" [disabled]="vm.busy" (click)="vm.restore(version)">{{ ui('Restore as working draft') }}</button><button class="btn ghost small" (click)="vm.export('student', 'docx', version)">{{ ui('Student Word') }}</button><button class="btn ghost small" [disabled]="!vm.draft" (click)="compare(version)"><studio-icon name="compare" />{{ copy.compare }}</button></div>
       </div>
-    } @empty { <p class="muted" i18n="@@ui_68d69e166312">Saved versions will appear after your first generation or explicit save.</p> }
+    } @empty { <studio-empty-state icon="history" [title]="copy.noVersions" [description]="ui('Saved versions will appear after your first generation or explicit save.')"><button class="btn" (click)="vm.selectTab('editor')">{{ ui('Open editor') }}</button></studio-empty-state> }
   </section>
   @if (vm.preview; as version) {
     <section class="panel snapshot"><div class="section-head"><div><div class="eyebrow muted"><ng-container i18n="@@ui_b33892fbddef">VERSION</ng-container> {{ version.number }} · {{ ui(version.kind).toUpperCase() }}</div>

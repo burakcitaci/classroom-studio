@@ -6,7 +6,9 @@ test('plans a class and a lesson, reuses lesson context and finds the document a
   await expect(page.getByRole('heading', { name: 'Classes', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
   const navigation = page.getByRole('navigation', { name: 'Workspace', exact: true });
-  await expect(navigation.getByRole('button', { name: 'Documents', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Open menu', exact: true }).click();
+  await expect(page.getByRole('dialog').getByRole('button', { name: 'Documents', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
 
   await page.screenshot({ path: info.outputPath('classes-mobile.png') });
   const example = page.getByRole('button', { name: 'Use the Biology example' });
@@ -53,7 +55,8 @@ test('plans a class and a lesson, reuses lesson context and finds the document a
   await expect(page.getByLabel('Subject', { exact: true })).toHaveValue('Biology');
   await expect(page.getByLabel('Grade / year', { exact: true })).toHaveValue('Grade 5');
 
-  await navigation.getByRole('button', { name: 'Documents', exact: true }).click();
+  await page.getByRole('button', { name: 'Open menu', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Documents', exact: true }).click();
   await page.getByLabel('Filter by class').selectOption({ label: 'Biology · Grade 5' });
   await expect(page.getByRole('button', { name: /^Plant and animal cells · Quiz/ }).first()).toBeVisible();
   await page.getByRole('button', { name: /^Plant and animal cells · Quiz/ }).first().click();

@@ -1,4 +1,5 @@
 import { interfaceLocale } from '../../core/i18n/locale';
+import { EmptyState, designCopy } from '../../shared/studio-ui';
 import { ui } from '../../core/i18n/ui-messages';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { WorkspaceStore } from '../workspace/workspace-store';
@@ -8,11 +9,12 @@ import { formatTimestamp } from '../../shared/format-timestamp';
 
 @Component({
   selector: 'studio-generation-audit',
-  imports: [Icon],
+  imports: [Icon, EmptyState],
   templateUrl: './generation-audit.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GenerationAudit {
+  protected readonly copy = designCopy;
   protected readonly ui = ui;
   private readonly workspace = inject(WorkspaceStore);
 

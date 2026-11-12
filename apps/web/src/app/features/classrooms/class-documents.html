@@ -6,7 +6,7 @@
         <strong>{{ document.title }}</strong>
         <small>{{ document.documentType?.title ?? ui(document.kind) }}{{ document.context?.lessonTitle ? ' · ' + document.context.lessonTitle : '' }}</small>
       </span>
-      <span class="badge" [class.green]="document.status === 'Ready'">{{ ui(document.status) }}</span>
+      <studio-status-badge [status]="document.status" />
       <studio-icon name="chevron" class="faint" />
     </button>
   } @empty {

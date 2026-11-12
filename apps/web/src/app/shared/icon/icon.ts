@@ -1,6 +1,9 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 const icons = {
+  menu: ['M4 6h16 M4 12h16 M4 18h16'],
+  grip: ['M9 5v.1 M15 5v.1 M9 12v.1 M15 12v.1 M9 19v.1 M15 19v.1'],
+  more: ['M5 12h.1 M12 12h.1 M19 12h.1'],
   logo: ['M3 6c4-2 7-1 9 1 2-2 5-3 9-1v13c-4-2-7-1-9 1-2-2-5-3-9-1Z', 'M12 7v13 M17 2v5 M14.5 4.5h5'],
   preview: ['M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z', 'M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z'],
   docs: ['M6 3h8l4 4v14H6z', 'M14 3v5h5 M9 12h6 M9 16h6'],

@@ -20,7 +20,7 @@
       @for (source of doc.sources; track source.id) {
         <div class="source-card">
           <div class="source-main">
-            <input #includeSource type="checkbox" [checked]="!!vm.role(source.id)" [attr.aria-label]="ui('Use ') + source.name" (change)="vm.selectSource(source, includeSource.checked)">
+            <label class="source-include"><input #includeSource type="checkbox" [checked]="!!vm.role(source.id)" [attr.aria-label]="ui('Use ') + source.name" (change)="vm.selectSource(source, includeSource.checked)"></label>
             <span class="doc-icon"><studio-icon name="docs" /></span>
             <div class="grow min-w-0"><strong>{{ source.name }}</strong><small>
               <span class="badge" [class.green]="source.status === 'ready'" [class.red]="source.status === 'error'">{{ source.status === 'error' ? ui('Needs attention') : source.type === 'note' ? ui('Pasted notes') : source.status === 'ready' ? ui('Indexed') : ui(source.status) }}</span>

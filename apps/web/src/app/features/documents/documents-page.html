@@ -1,16 +1,7 @@
-<section class="page-heading">
-  <div>
-    <h1 i18n="@@ui_687c82861c95">Documents</h1>
-    <p i18n="@@ui_881144b19567">Find and create assessments for any class or lesson.</p>
-  </div>
-  <div class="button-row">
-    <button class="btn" type="button" [disabled]="vm.busy" (click)="vm.create(createKind, true)">
-      <studio-icon name="spark" /> {{ vm.busy ? ui('Loading sample…') : ui('Try a sample exam') }}
-    </button>
-    <button type="button" class="btn" (click)="showTypes = true" i18n="@@manageDocumentTypes">Manage document types</button>
-    <button brnButton class="btn primary" type="button" (click)="openCreate()"><studio-icon name="plus" /> <ng-container i18n="@@ui_fc51cb7ddc24">Create document</ng-container></button>
-  </div>
-</section>
+<studio-page-header [title]="ui('Documents')" [description]="ui('Find and create assessments for any class or lesson.')">
+  <details class="overflow-menu"><summary class="btn ghost" [attr.aria-label]="ui('More options')"><studio-icon name="more" /></summary><div class="menu-popover"><button class="btn ghost" [disabled]="vm.busy" (click)="vm.create(createKind, true)"><studio-icon name="spark" />{{ ui('Try a sample exam') }}</button></div></details>
+  <button studioButton variant="primary" type="button" (click)="openCreate()"><studio-icon name="plus" />{{ ui('Create document') }}</button>
+</studio-page-header>
 
 <section class="library" i18n-aria-label="@@ui_911b44bdfad4" aria-label="Document library">
   <div class="library-toolbar">
@@ -33,6 +24,8 @@
           @for (type of vm.documentTypes.items(); track type.id) { <option [value]="type.id">{{ type.title }}</option> }
         </select>
       </label>
+      <label class="select-filter"><select [attr.aria-label]="copy.status" [(ngModel)]="statusFilter"><option value="all">{{ ui('Status') }}: {{ ui('All documents') }}</option>@for (status of ['Planning', 'Draft', 'Ready']; track status) { <option [value]="status">{{ ui(status) }}</option> }</select></label>
+      @if (hasFilters) { <button class="link-button" type="button" (click)="clearFilters()">{{ ui('Clear filters') }}</button> }
     </div>
   </div>
 
@@ -41,16 +34,16 @@
       <thead><tr><th scope="col" i18n="@@ui_e214b8a29923">Document</th><th scope="col" i18n="@@ui_3deb74565196">Type</th><th scope="col" i18n="@@ui_bae7d5be7082">Status</th><th scope="col" i18n="@@ui_f2f8570ddd7b">Updated</th></tr></thead>
       <tbody>
         @for (item of filtered; track item.id) {
-          <tr>
+          <tr (click)="vm.open(item.id, item.status === 'Planning' ? 'brief' : 'editor', true)">
             <td>
-              <button class="document-title" type="button" (click)="vm.open(item.id, item.status === 'Planning' ? 'brief' : 'editor', true)">
+              <button class="document-title" type="button" (click)="$event.stopPropagation(); vm.open(item.id, item.status === 'Planning' ? 'brief' : 'editor', true)">
                 <span class="doc-icon"><studio-icon name="docs" /></span>
                 <span class="document-label"><strong>{{ item.title }}</strong><small>{{ summaryLabel(item) }}</small></span>
                 <studio-icon class="row-arrow" name="chevron" />
               </button>
             </td>
             <td>{{ item.documentType?.title ?? ui(item.kind) }}</td>
-            <td><span class="badge" [class.green]="item.status === 'Ready'">{{ ui(item.status) }}</span></td>
+            <td><studio-status-badge [status]="item.status" /></td>
             <td>{{ shortDate(item.updated) }}</td>
           </tr>
         }
@@ -61,6 +54,7 @@
       <span class="empty-icon"><studio-icon [name]="vm.list.length ? 'search' : 'docs'" /></span>
       <h3>{{ vm.list.length ? ui('No matching documents') : ui('No documents yet') }}</h3>
       <p>{{ vm.list.length ? ui('Try a different search or clear the filters.') : ui('Create a document or try the sample exam to see how Studio works.') }}</p>
+      @if (!vm.list.length) { <button class="btn" (click)="vm.create(createKind, true)" [disabled]="vm.busy"><studio-icon name="spark" />{{ ui('Try a sample exam') }}</button> }
       @if (vm.list.length) { <button type="button" class="btn small" (click)="clearFilters()" i18n="@@ui_412226715c56">Clear filters</button> }
     </div>
   }
@@ -90,5 +84,3 @@
     </form>
   </studio-teacher-dialog>
 }
-
-@if (showTypes) { <studio-document-types-manager (closed)="showTypes = false" (selected)="useType($event)" /> }

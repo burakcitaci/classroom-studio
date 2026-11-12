@@ -13,11 +13,15 @@ for (const locale of ['en', 'de']) {
       : { library: 'Documents', navigation: 'Document navigation', back: 'Back to documents', brief: 'What should Studio create?' };
     await page.goto('/?view=documents&lang=' + locale);
     await page.locator('.document-title').filter({ hasText: lesson.title }).click();
+    if (locale === 'de') {
+      await expect(page.locator('.current-crumb')).toContainText('Atlas lesson');
+      await page.setViewportSize({ width: 1440, height: 900 });
+    }
     const breadcrumb = page.getByRole('navigation', { name: labels.navigation, exact: true });
     await expect(breadcrumb.getByRole('button', { name: labels.back, exact: true })).toBeVisible();
     await expect(breadcrumb.getByRole('button', { name: classroom.title, exact: true })).toBeVisible();
     await expect(breadcrumb.getByRole('button', { name: lesson.title, exact: true })).toBeVisible();
-    await expect(breadcrumb.locator('[aria-current="page"]')).toHaveText('Details');
+    await expect(breadcrumb.locator('[aria-current="page"]')).toContainText('Atlas lesson');
     const edited = 'Preserve my document edits while navigating ' + locale;
     await page.getByRole('button', { name: locale === 'de' ? 'Plan bearbeiten' : 'Edit plan', exact: true }).click();
     await page.getByLabel(labels.brief).fill(edited);
@@ -35,6 +39,7 @@ for (const locale of ['en', 'de']) {
     await page.goBack();
     await page.reload();
     await expect(breadcrumb).toBeVisible();
+    if (locale === 'de') await page.setViewportSize({ width: 390, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 }

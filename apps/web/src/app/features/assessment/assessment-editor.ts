@@ -6,12 +6,14 @@ import { Icon } from '../../shared/icon/icon';
 import { FormsModule } from '@angular/forms';
 import { totalPoints, type Assessment, type Job, type Question } from '../../../../../../libs/contracts/src';
 import { evidenceFor } from './assessment-evidence';
+import { CdkDrag, CdkDragHandle, CdkDropList, moveItemInArray, type CdkDragDrop } from '@angular/cdk/drag-drop';
+import { designCopy } from '../../shared/studio-ui';
 
 type Section = Assessment['sections'][number];
 
 @Component({
   selector: 'studio-assessment-editor',
-  imports: [FormsModule, Icon],
+  imports: [FormsModule, Icon, CdkDrag, CdkDragHandle, CdkDropList],
   templateUrl: './assessment-editor.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -22,6 +24,16 @@ export class AssessmentEditor {
   protected get vm() { return this.workspace.view; }
   protected readonly points = totalPoints;
   protected readonly evidenceFor = evidenceFor;
+  protected readonly copy = designCopy;
+  protected readonly showRail = signal(false);
+  protected readonly selectedQuestion = signal('');
+  protected get questions() { return this.vm.draft?.sections.flatMap(section => section.questions) ?? []; }
+  protected get focusedQuestion() { return this.questions.find(question => question.id === this.selectedQuestion()) ?? this.questions[0]; }
+  protected drop(event: CdkDragDrop<Question[]>, section: Section) {
+    if (event.previousIndex === event.currentIndex) return;
+    moveItemInArray(section.questions, event.previousIndex, event.currentIndex);
+    this.vm.change();
+  }
   protected previewJob?: Job;
   private readonly notifications = inject(Notifications);
   private readonly reviewedWarnings = signal<string | null>(null);
@@ -31,13 +43,13 @@ export class AssessmentEditor {
     this.notifications.dismiss('review-notes');
   }
 
-  private revealReviewNotes() {
+  protected revealReviewNotes() {
     const notes = document.getElementById('draft-review-notes');
     notes?.scrollIntoView({ block: 'center', behavior: 'auto' });
     notes?.focus({ preventScroll: true });
   }
 
-  protected markReady() {
+  markReady() {
     if (this.vm.draft?.warnings.length && !this.warningsReviewed) {
       this.revealReviewNotes();
       this.notifications.error($localize`:@@reviewNotesRequired:Review the notes above and select “I reviewed the notes” before marking this draft as ready.`, {

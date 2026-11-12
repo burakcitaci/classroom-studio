@@ -1,3 +1,4 @@
+import { EmptyState } from '../../shared/studio-ui';
 import { ui } from '../../core/i18n/ui-messages';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { WorkspaceStore } from '../workspace/workspace-store';
@@ -8,7 +9,7 @@ import { compare, type Side } from './compare-versions';
 
 @Component({
   selector: 'studio-version-comparison',
-  imports: [FormsModule],
+  imports: [FormsModule, EmptyState],
   templateUrl: './version-comparison.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

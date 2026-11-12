@@ -1,3 +1,4 @@
+import { GenerationControls } from '../workspace/generation-controls';
 import { DocumentTypesManager } from '../document-types/document-types-manager';
 import type { DocumentType } from '../../../../../../libs/contracts/src';
 import { ui } from '../../core/i18n/ui-messages';
@@ -10,7 +11,7 @@ import { SourceMaterials } from '../sources/source-materials';
 
 @Component({
   selector: 'studio-assessment-brief',
-  imports: [FormsModule, Icon, SourceMaterials, DocumentTypesManager],
+  imports: [FormsModule, Icon, SourceMaterials, DocumentTypesManager, GenerationControls],
   templateUrl: './assessment-brief.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

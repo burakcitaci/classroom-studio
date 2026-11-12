@@ -1,6 +1,6 @@
 <brn-dialog state="open" [disableClose]="busy()" [aria-label]="title()" (closed)="closed.emit()">
   <ng-template brnDialogContent>
-    <div class="teacher-dialog-panel">
+    <div class="teacher-dialog-panel" [class.drawer-panel]="placement() === 'drawer'" [class.navigation-panel]="placement() === 'navigation'">
       <div class="dialog-heading">
         <div>
           <h2 brnDialogTitle>{{ title() }}</h2>
@@ -11,6 +11,7 @@
         </button>
       </div>
       <ng-content />
+      <div class="dialog-footer"><ng-content select="[dialog-footer]" /></div>
     </div>
   </ng-template>
 </brn-dialog>

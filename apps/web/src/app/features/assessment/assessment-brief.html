@@ -43,7 +43,7 @@
         </div>
       }
     </section>
-    <studio-source-materials />
+    <div id="sources-panel"><studio-source-materials /></div>
   </div>
   <div class="stack">
     <section class="panel retrieval">
@@ -71,5 +71,7 @@
     }
   </div>
 </div>
+
+<studio-generation-controls />
 
 @if (showTypes) { <studio-document-types-manager (closed)="showTypes = false" (selected)="useType($event)" /> }

@@ -1,62 +1,61 @@
-<aside class="sidebar">
-  <div class="sidebar-brand">
-    <button class="brand" type="button" (click)="vm.openClass(undefined, undefined, true)" i18n-aria-label="@@ui_21048484d610" aria-label="Classroom Studio home">
-      <span class="logo"><studio-icon name="logo" /></span>
-      <span i18n="@@ui_fdd38bdf776b">Classroom Studio</span>
-    </button>
-    <span class="mode-pill mobile-mode"><span class="mode-dot" [class.live]="vm.provider === 'ollama'"></span>{{ vm.provider === 'demo' ? ui('Demo mode') : vm.provider === 'ollama' ? ui('Ollama mode') : ui('Connecting…') }}</span>
-  </div>
-  <nav class="nav-group" i18n-aria-label="@@ui_4ca0a75c2b7f" aria-label="Workspace">
+<ng-template #navigation let-mobile="mobile">
+  <nav class="nav-group" aria-label="Workspace" i18n-aria-label="@@ui_4ca0a75c2b7f">
     <div class="eyebrow nav-label" i18n="@@ui_4ca0a75c2b7f">Workspace</div>
-    <button type="button" class="nav-item" [class.active]="vm.section === 'classes'" i18n-aria-label="@@ui_ed1846afee3b" aria-label="Classes"
-      [attr.aria-current]="vm.section === 'classes' ? 'page' : null" (click)="vm.openClass(undefined, undefined, true)">
-      <studio-icon name="book" /> <span i18n="@@ui_ed1846afee3b">Classes</span>
-    </button>
-    <button type="button" class="nav-item" [class.active]="vm.section === 'documents'" i18n-aria-label="@@ui_687c82861c95" aria-label="Documents"
-      [attr.aria-current]="vm.section === 'documents' ? 'page' : null" (click)="vm.open(undefined, 'brief', true)">
-      <studio-icon name="docs" /> <span i18n="@@ui_687c82861c95">Documents</span>
-    </button>
-    <label class="language-control mobile-language" for="mobile-interface-language">
-      <span class="sr-only" i18n="@@interfaceLanguage">Interface language</span>
-      <select id="mobile-interface-language" data-interface-language #mobileLanguage [value]="locale" [disabled]="switchingLanguage() || vm.savingPlan" (change)="changeLanguage(mobileLanguage.value)">
-        <option value="en" lang="en">English</option><option value="de" lang="de">Deutsch</option>
-      </select>
-    </label>
+    <button class="nav-item" type="button" [class.active]="vm.section === 'classes'" [attr.aria-current]="vm.section === 'classes' ? 'page' : null" [attr.aria-label]="ui('Classes')" (click)="navigate('classes')"><studio-icon name="book" /><span>{{ ui('Classes') }}</span></button>
+    <button class="nav-item" type="button" [class.active]="vm.section === 'documents'" [attr.aria-current]="vm.section === 'documents' ? 'page' : null" [attr.aria-label]="ui('Documents')" (click)="navigate('documents')"><studio-icon name="docs" /><span>{{ ui('Documents') }}</span></button>
+    <div class="nav-divider"></div>
+    <button class="nav-item" type="button" aria-haspopup="dialog" (click)="mobileMenu.set(false); showTypes.set(true)" aria-label="Document types" i18n-aria-label="@@documentTypes"><studio-icon name="grid" /><span i18n="@@documentTypes">Document types</span></button>
   </nav>
   <div class="sidebar-foot">
+    <span class="mode-pill"><span class="mode-dot" [class.live]="vm.provider === 'ollama'"></span>{{ vm.provider === 'demo' ? ui('Demo mode') : vm.provider === 'ollama' ? ui('Ollama mode') : ui('Connecting…') }}</span>
+    <label class="language-control" [attr.for]="mobile ? 'mobile-interface-language' : 'interface-language'">
+      <span i18n="@@interfaceLanguage">Interface language</span>
+      <select [id]="mobile ? 'mobile-interface-language' : 'interface-language'" data-interface-language #language [value]="locale" [disabled]="switchingLanguage() || vm.savingPlan" (change)="changeLanguage(language.value)"><option value="en" lang="en">English</option><option value="de" lang="de">Deutsch</option></select>
+    </label>
     <div class="profile"><span class="avatar" i18n="@@ui_c2c53d669482">T</span><div><strong i18n="@@ui_da33ddcb584a">Teacher</strong><small i18n="@@ui_6caab273e6ad">Local workspace</small></div></div>
   </div>
+</ng-template>
+
+<aside class="sidebar">
+  <div class="sidebar-brand"><button class="brand" type="button" (click)="navigate('classes')" aria-label="Classroom Studio home" i18n-aria-label="@@ui_21048484d610"><span class="logo"><studio-icon name="logo" /></span><span i18n="@@ui_fdd38bdf776b">Classroom Studio</span></button></div>
+  <ng-container [ngTemplateOutlet]="navigation" [ngTemplateOutletContext]="{ mobile: false }" />
 </aside>
 
 <div class="shell">
   <header class="topbar">
-    @if (vm.section === 'classes') {
-      <button class="crumb" (click)="vm.openClass(undefined, undefined, true)"><studio-icon name="book" /> <ng-container i18n="@@ui_ed1846afee3b">Classes</ng-container></button>
-    } @else {
-      <button class="crumb" (click)="vm.open(undefined, 'brief', true)"><studio-icon name="docs" /> <ng-container i18n="@@ui_687c82861c95">Documents</ng-container></button>
-    }
-    <span class="grow"></span>
-    <label class="language-control" for="interface-language">
-      <span class="sr-only" i18n="@@interfaceLanguage">Interface language</span>
-      <select id="interface-language" data-interface-language #language [value]="locale" [disabled]="switchingLanguage() || vm.savingPlan" (change)="changeLanguage(language.value)">
-        <option value="en" lang="en">English</option>
-        <option value="de" lang="de">Deutsch</option>
-      </select>
-    </label>
-    <span class="mode-pill"><span class="mode-dot" [class.live]="vm.provider === 'ollama'"></span>{{ vm.provider === 'demo' ? ui('Demo mode') : vm.provider === 'ollama' ? ui('Ollama mode') : ui('Connecting…') }}</span>
+    <button class="icon-button mobile-menu-trigger" type="button" [attr.aria-label]="copy.menu" [attr.aria-expanded]="mobileMenu()" aria-haspopup="dialog" (click)="mobileMenu.set(true)"><studio-icon name="menu" /></button>
+    <nav class="breadcrumbs" aria-label="Document navigation" i18n-aria-label="@@documentNavigation">
+      @if (vm.doc; as doc) {
+        <button class="crumb document-back" [disabled]="vm.savingPlan" aria-label="Back to documents" i18n-aria-label="@@backToDocuments" (click)="navigate('documents')">{{ ui('Documents') }}</button>
+        @if (doc.context; as context) {
+          <studio-icon name="chevron" /><button class="crumb" (click)="vm.openClass(context.classId, undefined, true)">{{ context.classTitle }}</button>
+          @if (context.lessonId && context.lessonTitle) { <studio-icon name="chevron" /><button class="crumb" (click)="vm.openClass(context.classId, context.lessonId, true)">{{ context.lessonTitle }}</button> }
+        }
+        <studio-icon name="chevron" /><span class="current-crumb" aria-current="page">{{ vm.heading }}</span>
+      } @else if (vm.section === 'classes') {
+        <button class="crumb" (click)="navigate('classes')">{{ ui('Classes') }}</button>
+        @if (vm.classId && classTrail(); as trail) {
+          <studio-icon name="chevron" /><button class="crumb" [attr.aria-current]="!vm.lessonId ? 'page' : null" (click)="vm.openClass(vm.classId, undefined, true)">{{ trail.classTitle }}</button>
+          @if (vm.lessonId && trail.lessonTitle) { <studio-icon name="chevron" /><span class="current-crumb" aria-current="page">{{ trail.lessonTitle }}</span> }
+        }
+      } @else { <span class="crumb" aria-current="page">{{ ui('Documents') }}</span> }
+    </nav>
+    @if (vm.doc) { <studio-save-indicator [dirty]="vm.dirty" [saving]="vm.savingPlan" /> }
   </header>
-
-  <main class="main-content">
-    @if (vm.loading) {
-      <div class="panel loading" role="status"><span class="spinner"></span> <ng-container i18n="@@ui_786d09b6e382">Opening your workspace…</ng-container></div>
-    } @else if (vm.section === 'classes') {
-      <studio-classrooms-page [classId]="vm.classId" [lessonId]="vm.lessonId" />
-    } @else if (!vm.doc) {
-      <studio-documents-page />
-    } @else {
-      <studio-document-workspace />
-    }
+  <main class="main-content" id="main-content">
+    @if (vm.loading) { <studio-skeleton /> }
+    @else if (vm.section === 'classes') { <studio-classrooms-page [classId]="vm.classId" [lessonId]="vm.lessonId" (locationChange)="classTrail.set($event)" /> }
+    @else if (!vm.doc) { <studio-documents-page /> }
+    @else { <studio-document-workspace /> }
   </main>
 </div>
-
+@if (mobileMenu()) {
+  <studio-teacher-dialog [title]="ui('Workspace')" placement="navigation" (closed)="mobileMenu.set(false)"><ng-container [ngTemplateOutlet]="navigation" [ngTemplateOutletContext]="{ mobile: true }" /></studio-teacher-dialog>
+}
+@if (showTypes()) { <studio-document-types-manager (closed)="showTypes.set(false)" (selected)="useType($event)" /> }
+@if (pendingLocale()) {
+  <studio-teacher-dialog [title]="ui('Interface language')" [description]="copy.language" [busy]="switchingLanguage()" (closed)="pendingLocale.set(null)">
+    <div dialog-footer class="button-row"><button class="btn" [disabled]="switchingLanguage()" (click)="pendingLocale.set(null)">{{ ui('Cancel') }}</button><button class="btn primary" [disabled]="switchingLanguage()" (click)="confirmLanguage()">{{ ui('Interface language') }}: {{ pendingLocale() === 'de' ? 'Deutsch' : 'English' }}</button></div>
+  </studio-teacher-dialog>
+}
 <studio-toaster />
