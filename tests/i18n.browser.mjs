@@ -16,6 +16,9 @@ test('German interface follows browser language and safely switches to English',
   await expect(page.getByLabel('Klassenbezeichnung')).toHaveValue('Biologie 5b');
   await expect(page.locator('[data-sonner-toast]').last()).toContainText('Schließe das aktuelle Formular');
   await page.getByRole('button', { name: 'Abbrechen', exact: true }).click();
+  // The language guard checks for open forms. Wait for the dialog's exit
+  // lifecycle to remove its form before attempting the next language change.
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.locator('#interface-language').selectOption('en');
   await page.getByRole('dialog').getByRole('button', { name: /^(Sprache der Oberfläche|Interface language):/ }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
