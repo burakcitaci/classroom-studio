@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import { documentTypeSnapshotSchema, type DocumentTypeSnapshot } from './document-types.js';
+export * from './document-types.js';
+import type { DocumentContext } from './classrooms.js';
+
+export * from './classrooms.js';
 
 export const kinds = ['Exam', 'Quiz', 'Worksheet', 'Practice Test', 'Custom'] as const;
 export const modes = ['Off', 'Basic', 'Advanced', 'Graph'] as const;
@@ -12,6 +17,7 @@ const optionalText = (max: number) => z.string().trim().max(max).default('');
 
 export const briefSchema = z.strictObject({
   kind: z.enum(kinds),
+  documentType: documentTypeSnapshotSchema.optional(),
   brief: z.string().trim().max(3500),
   subject: optionalText(120),
   grade: optionalText(80),
@@ -29,6 +35,7 @@ export const settingsSchema = z.strictObject({
   brief: briefSchema,
   sources: z.array(selectionSchema).max(8).refine(rows => new Set(rows.map(row => row.id)).size === rows.length),
   rag: z.enum(modes),
+  generationModel: text(240).optional(),
   automatic: z.boolean().default(true),
   topK: z.number().int().min(1).max(8).default(4),
   hops: z.number().int().min(1).max(2).default(1),
@@ -44,6 +51,7 @@ export const evidenceSchema = z.strictObject({
   name: text(240),
   ordinal: z.number().int().nonnegative(),
   text: text(1600),
+  sourceQuote: text(500).optional(),
   score: z.number().optional(),
   path: z.array(text(400)).max(7).optional(),
   use: z.enum(['content', 'notes', 'format']),
@@ -104,14 +112,17 @@ export interface DocumentSummary {
   id: string;
   title: string;
   kind: Brief['kind'];
+  documentType?: DocumentTypeSnapshot;
   subject: string;
   grade: string;
   language: Brief['language'];
   status: 'Ready' | 'Draft' | 'Planning';
   updated: string;
+  context: DocumentContext | null;
 }
 export interface StudioDocument extends Working {
   id: string;
+  context: DocumentContext | null;
   updated: string;
   ready: boolean;
   sources: Source[];

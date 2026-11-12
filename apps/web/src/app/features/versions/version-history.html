@@ -1,0 +1,39 @@
+<div class="stack">
+  <section class="panel"><div class="section-head"><div><div class="eyebrow muted" i18n="@@ui_3a49b12babea">SAVED SNAPSHOTS</div><h2 i18n="@@ui_91f86581f16b">Version history</h2>
+    <p i18n="@@ui_f99ef0f26f86">AI drafts, explicit saves, ready versions and restorations.</p></div><span class="count">{{ vm.revisions.length }}</span></div>
+    @for (version of vm.revisions; track version.id) {
+      <div class="history-row">
+        <span class="doc-icon"><studio-icon [name]="version.kind === 'AI' ? 'spark' : 'history'" /></span>
+        <div class="grow"><strong><ng-container i18n="@@ui_2da600bf9404">Version</ng-container> {{ version.number }} · {{ version.draft.title }}</strong><small>{{ time(version.created) }} · {{ points(version.draft) }} <ng-container i18n="@@ui_819f41f05837">points</ng-container></small></div>
+        <span class="badge" [class.green]="version.kind === 'Ready'">{{ ui(version.kind) }}</span>
+        <button class="btn small" (click)="vm.viewVersion(version)"><ng-container i18n="@@ui_933d4419bb90">Preview version</ng-container> {{ version.number }}</button>
+      </div>
+    } @empty { <p class="muted" i18n="@@ui_68d69e166312">Saved versions will appear after your first generation or explicit save.</p> }
+  </section>
+  @if (vm.preview; as version) {
+    <section class="panel snapshot"><div class="section-head"><div><div class="eyebrow muted"><ng-container i18n="@@ui_b33892fbddef">VERSION</ng-container> {{ version.number }} · {{ ui(version.kind).toUpperCase() }}</div>
+      <h2>{{ version.draft.title }}</h2><p>{{ version.draft.instructions }}</p></div>
+      <button class="icon-button" i18n-aria-label="@@ui_5ea4651e0596" aria-label="Close version preview" (click)="vm.preview = undefined"><studio-icon name="x" /></button></div>
+      <div class="button-row">
+        <button class="btn small primary" [disabled]="vm.busy" (click)="vm.restore(version)" i18n="@@ui_111b3068e276">Restore as working draft</button>
+        <button class="btn small" (click)="vm.export('student', 'docx', version)" i18n="@@ui_c9990b5866c4">Student Word</button>
+        <button class="btn small" (click)="vm.export('teacher', 'docx', version)" i18n="@@ui_073c068f9d92">Teacher Word</button>
+        <button class="btn small" (click)="vm.export('student', 'print', version)" i18n="@@ui_1d22369dc1e7">Student print view</button>
+        <button class="btn small" (click)="vm.export('teacher', 'print', version)" i18n="@@ui_8f3699ecf916">Teacher print view</button>
+      </div>
+      @for (section of version.draft.sections; track section.id) {
+        <div class="snapshot-section"><h3>{{ section.title }}</h3><p>{{ section.instructions }}</p>
+          <ol>@for (question of section.questions; track question.id) {
+            <li><strong>{{ question.prompt }}</strong> <span class="badge">{{ question.points }} <ng-container i18n="@@ui_4abdfc6d463e">pts</ng-container></span>
+              <p>{{ question.answer }}</p><p>{{ question.rubric }}</p>
+              @for (source of evidenceFor(version.draft, question); track source.id) {
+                <details class="evidence"><summary>{{ source.name }} <ng-container i18n="@@ui_4b10aa3e6014">· passage</ng-container> {{ source.ordinal + 1 }}</summary><blockquote>{{ source.text }}</blockquote></details>
+              }
+            </li>
+          }</ol>
+        </div>
+      }
+      @if (version.draft.teacherNotes) { <div class="snapshot-section"><h3 i18n="@@ui_0107e5f94681">Teacher notes</h3><p>{{ version.draft.teacherNotes }}</p></div> }
+    </section>
+  }
+</div>

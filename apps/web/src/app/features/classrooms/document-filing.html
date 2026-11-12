@@ -1,0 +1,27 @@
+<studio-teacher-dialog i18n-title="@@ui_780a5add242b" title="Organize document" i18n-description="@@ui_47046024420b" description="Choose where this document should appear in your class planner."
+  [busy]="saving()" (closed)="closed.emit()">
+  <form (ngSubmit)="save()">
+    @if (error()) { <div class="message danger" role="alert">{{ error() }}</div> }
+    <label class="field"><ng-container i18n="@@ui_41ff354b2b33">Class</ng-container>
+      <select name="class" [ngModel]="classId" (ngModelChange)="chooseClass($event)" [disabled]="saving()">
+        <option value="" i18n="@@ui_c1aca7367373">Unfiled</option>
+        @for (item of classes(); track item.id) {
+          <option [value]="item.id">{{ item.title }}{{ item.archived ? ui(' (archived)') : '' }}</option>
+        }
+      </select>
+    </label>
+    @if (classId) {
+      <label class="field"><ng-container i18n="@@ui_188ecdea21f3">Lesson</ng-container>
+        <select name="lesson" [(ngModel)]="lessonId" [disabled]="loading() || saving()">
+          <option value="" i18n="@@ui_adda9d3c2b48">Class only</option>
+          @for (lesson of lessons(); track lesson.id) { <option [value]="lesson.id">{{ lesson.title }}</option> }
+        </select>
+      </label>
+    }
+    @if (loading()) { <p class="muted mt-3" role="status" i18n="@@ui_08848d81dfd7">Loading class options…</p> }
+    <div class="button-row justify-end mt-5">
+      <button class="btn" type="button" [disabled]="saving()" (click)="closed.emit()" i18n="@@ui_77dfd2135f4d">Cancel</button>
+      <button class="btn primary" type="submit" [disabled]="loading() || saving() || !!error()" i18n="@@ui_e5c47400711a">Save location</button>
+    </div>
+  </form>
+</studio-teacher-dialog>

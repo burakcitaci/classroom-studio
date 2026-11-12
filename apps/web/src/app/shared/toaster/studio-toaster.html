@@ -1,0 +1,9 @@
+<brn-sonner-toaster position="bottom-right" [richColors]="true" [duration]="6000" [visibleToasts]="3" [offset]="20"
+  [style]="{ '--normal-bg': 'var(--panel)', '--normal-text': 'var(--ink)', '--normal-border': 'var(--border)', '--border-radius': '9px' }">
+  <ng-template #successIcon><studio-icon name="check" /></ng-template>
+  <ng-template #errorIcon><studio-icon name="warning" /></ng-template>
+  <ng-template #warningIcon><studio-icon name="warning" /></ng-template>
+  <ng-template #infoIcon><studio-icon name="docs" /></ng-template>
+  <button *brnToastAction="let action; let item = toast" type="button" class="btn small toast-action" (click)="activate(action, item, $event)">{{ action.label }}</button>
+  <button *brnToastCancelAction="let action; let item = toast" type="button" class="btn small toast-cancel" (click)="activate(action, item, $event)">{{ action.label }}</button>
+</brn-sonner-toaster>

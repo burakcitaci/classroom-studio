@@ -18,7 +18,7 @@
     "lint": { "command": "eslint apps/api libs/contracts" },
     "test": {
       "dependsOn": ["build"],
-      "command": "node --test tests/api.test.mjs tests/ollama-adapters.test.mjs"
+      "command": "node --test tests/api.test.mjs tests/ollama-adapters.test.mjs tests/postgres.test.mjs"
     }
   }
 }

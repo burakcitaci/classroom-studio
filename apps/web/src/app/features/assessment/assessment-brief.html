@@ -1,0 +1,75 @@
+<div class="work-grid">
+  <div class="stack">
+    <section class="panel" aria-labelledby="plan-heading">
+      <div class="section-head"><div><div class="eyebrow muted" i18n="@@ui_dccd42814de2">01 / PLAN</div><h2 id="plan-heading" i18n="@@ui_7fa45888094f">Write a short brief</h2><p i18n="@@ui_a1ac0961b15d">Describe what you want your class to demonstrate.</p></div>
+        @if (!vm.planEditing) {
+          <button type="button" class="btn small" (click)="vm.editPlan()" [disabled]="vm.busy"><studio-icon name="edit" /><ng-container i18n="@@editPlan">Edit plan</ng-container></button>
+        } @else { <span class="badge" i18n="@@editingPlan">Editing plan</span> }
+      </div>
+      <button type="button" class="link-button mb-3" (click)="showTypes = true" [disabled]="vm.busy" i18n="@@manageDocumentTypes">Manage document types</button>
+      <fieldset class="plan-fields" [disabled]="!vm.planEditing || vm.busy">
+        <label class="field"><ng-container i18n="@@ui_300b6ef0cdd8">Document type</ng-container><select [ngModel]="vm.selectedDocumentType" (ngModelChange)="vm.chooseDocumentType($event)">
+          @for (kind of kinds; track kind) { <option [value]="kind">{{ ui(kind) }}</option> }
+          @for (type of vm.documentTypes.items(); track type.id) { <option [value]="type.id">{{ type.title }}</option> }
+          @if (vm.settings.brief.documentType; as savedType) {
+            @if (!vm.documentTypes.items().some(hasSelectedType)) { <option [value]="savedType.id">{{ savedType.title }}</option> }
+          }
+        </select></label>
+        @if (vm.settings.brief.documentType; as type) {
+          <details class="more type-guidance"><summary i18n="@@savedTypeGuidance">Saved type guidance</summary><p class="long-text">{{ type.guidance }}</p></details>
+        }
+        <label class="field"><ng-container i18n="@@ui_0c1f14f4719d">What should Studio create?</ng-container>
+          <textarea rows="5" maxlength="3500" i18n-placeholder="@@ui_ed5ae19805a2" placeholder="e.g. A Year 7 biology exam on ecosystems, food chains and decomposers…" [(ngModel)]="vm.settings.brief.brief" (ngModelChange)="vm.change()"></textarea>
+        </label>
+        <details class="more"><summary i18n="@@ui_86c0a35ec883">More options</summary>
+          <div class="field-grid">
+            <label class="field"><ng-container i18n="@@ui_8d183dbdcea3">Subject</ng-container><input maxlength="120" [(ngModel)]="vm.settings.brief.subject" (ngModelChange)="vm.change()"></label>
+            <label class="field"><ng-container i18n="@@ui_f8b8f8034ef0">Grade / year</ng-container><input maxlength="80" [(ngModel)]="vm.settings.brief.grade" (ngModelChange)="vm.change()"></label>
+            <label class="field span-two"><ng-container i18n="@@ui_07e4f9c27860">Topics</ng-container><input maxlength="350" [(ngModel)]="vm.settings.brief.topics" (ngModelChange)="vm.change()"></label>
+            <label class="field"><ng-container i18n="@@ui_aedf056660c7">Output language</ng-container><select [(ngModel)]="vm.settings.brief.language" (ngModelChange)="vm.change()"><option value="en" i18n="@@ui_649df08a448e">English</option><option value="de" i18n="@@ui_da91388c72d3">German</option></select></label>
+            <label class="field"><ng-container i18n="@@ui_10c3d1ca4b19">Duration (minutes)</ng-container><input type="number" min="1" max="480" [(ngModel)]="vm.settings.brief.duration" (ngModelChange)="vm.change()"></label>
+            <label class="field"><ng-container i18n="@@ui_7945d3c8f7a0">Difficulty</ng-container><select [(ngModel)]="vm.settings.brief.difficulty" (ngModelChange)="vm.change()"><option value="Mixed" i18n="@@ui_c0dcb865ad81">Mixed</option><option value="Introductory" i18n="@@ui_82072485552c">Introductory</option><option value="Standard" i18n="@@ui_2dfa66079d9b">Standard</option><option value="Challenging" i18n="@@ui_b31d36c1c500">Challenging</option></select></label>
+            <label class="field"><ng-container i18n="@@ui_16c4a00deafc">Total points</ng-container><input type="number" min="1" max="500" i18n-placeholder="@@ui_ac9041e76816" placeholder="Automatic" [(ngModel)]="vm.settings.brief.totalPoints" (ngModelChange)="vm.change()"></label>
+            <label class="field span-two"><ng-container i18n="@@ui_60e11771f2a3">Question mix</ng-container><input maxlength="350" i18n-placeholder="@@ui_cf5313161f66" placeholder="e.g. 2 short answers, 2 applied scenarios" [(ngModel)]="vm.settings.brief.mix" (ngModelChange)="vm.change()"></label>
+          </div>
+        </details>
+      </fieldset>
+      @if (vm.planEditing) {
+        <p class="form-help mt-3" i18n="@@planSaveHelp">Changes take effect after you save the plan.</p>
+        <div class="button-row mt-3">
+          <button type="button" class="btn primary small" (click)="vm.savePlan()" [disabled]="vm.busy || !vm.settings.brief.brief.trim()"><studio-icon name="check" /><ng-container i18n="@@savePlan">Save plan</ng-container></button>
+          <button type="button" class="btn small" (click)="vm.cancelPlan()" [disabled]="vm.busy" i18n="@@ui_77dfd2135f4d">Cancel</button>
+          @if (vm.savingPlan) { <span role="status" i18n="@@savingPlan">Saving plan…</span> }
+        </div>
+      }
+    </section>
+    <studio-source-materials />
+  </div>
+  <div class="stack">
+    <section class="panel retrieval">
+      <div class="section-head"><div><div class="eyebrow muted" i18n="@@ui_530a84f55664">03 / GUIDE</div><h2 i18n="@@ui_b8ad5d5f97b7">How should AI use your materials?</h2>
+        <p>{{ ui('Selected sources:') }} {{ vm.selectedSourceCount }}</p></div><span class="step-icon"><studio-icon name="spark" /></span></div>
+      <fieldset class="modes"><legend class="sr-only" i18n="@@ui_b8ad5d5f97b7">How should AI use your materials?</legend>
+        @for (mode of modes; track mode) {
+          <label class="mode-choice" [class.selected]="vm.settings.rag === mode">
+            <input type="radio" name="rag" [value]="mode" [checked]="vm.settings.rag === mode" (change)="vm.chooseMode(mode)">
+            <span><strong>{{ ui(mode) }}</strong><small>{{ ui(modeInfo[mode]) }}</small></span>
+          </label>
+        }
+      </fieldset>
+      <details class="more"><summary><ng-container i18n="@@ui_86c0a35ec883">More options</ng-container> <span class="faint" i18n="@@ui_83af4188a926">· Retrieval</span></summary>
+        <div class="field-grid">
+          <label class="field"><ng-container i18n="@@ui_0f683ef683ec">Excerpt limit</ng-container><input type="number" min="1" max="8" [(ngModel)]="vm.settings.topK" (ngModelChange)="vm.change()"></label>
+          <label class="field"><ng-container i18n="@@ui_7531762ceac3">Graph hops</ng-container><input type="number" min="1" max="2" [(ngModel)]="vm.settings.hops" (ngModelChange)="vm.change()"></label>
+        </div>
+        <button class="link-button mt-3" (click)="vm.useAutomaticMode()" i18n="@@ui_ededd8c23cdd">Use automatic mode</button>
+      </details>
+      <div class="retrieval-tip"><studio-icon name="leaf" /> <span i18n="@@ui_536bd7dceb30">Format samples guide layout and difficulty. Content sources support new questions with evidence.</span></div>
+    </section>
+    @if (vm.provider === 'demo') {
+      <section class="panel demo-panel"><studio-icon name="spark" /><div><strong i18n="@@ui_a85b7283ace0">Demo mode</strong><p i18n="@@ui_9a7132a4d0d8">Try the full workflow with template questions and repeatable source matching. Switch to Ollama for model-generated assessments.</p></div></section>
+    }
+  </div>
+</div>
+
+@if (showTypes) { <studio-document-types-manager (closed)="showTypes = false" (selected)="useType($event)" /> }

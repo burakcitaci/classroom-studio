@@ -1,0 +1,97 @@
+@if (vm.draft; as assessment) {
+  <div class="stack">
+    @if (assessment.warnings.length) {
+      <section class="panel review-warnings" id="draft-review-notes" tabindex="-1" aria-labelledby="draft-review-heading">
+        <h3 id="draft-review-heading"><studio-icon name="warning" /><span i18n="@@reviewNotesHeading">Review notes</span> <span class="count">{{ assessment.warnings.length }}</span></h3>
+        <p i18n="@@reviewNotesHelp">You can save a draft with these notes. Review and acknowledge them before marking it as ready.</p>
+        <ul>@for (warning of assessment.warnings; track $index) { <li>{{ warning }}</li> }</ul>
+        <label class="check-label mt-4"><input type="checkbox" [ngModel]="warningsReviewed" (ngModelChange)="acknowledgeWarnings($event)"> <span i18n="@@ui_29d589c5fd06">I reviewed the notes</span></label>
+      </section>
+    }
+    @if (pendingPreviews.length) {
+      <div class="panel"><h2 i18n="@@ui_0967f88e485b">Question regeneration</h2>
+        @for (job of pendingPreviews; track job.id) {
+          <button class="btn small mt-2" (click)="previewJob = job" i18n="@@ui_ff3f224a9426">Preview regenerated question</button>
+        }
+        @if (previewJob; as job) {
+          <div class="note-form"><h3 i18n="@@ui_00e1ebf55cb1">Proposed replacement</h3><p>{{ job.preview?.prompt }}</p><p><strong i18n="@@ui_4b2a6a314956">Points</strong> {{ job.preview?.points }}</p>
+            <p><strong i18n="@@ui_a16a4eda7cb2">Answer</strong> {{ job.preview?.answer }}</p><p><strong i18n="@@ui_a6e081bd4fc6">Scoring</strong> {{ job.preview?.rubric }}</p>
+            <div class="button-row"><button class="btn small primary" (click)="replaceQuestion(job)" i18n="@@ui_03aa2f263b0f">Replace question</button>
+              <button class="btn small" (click)="previewJob = undefined" i18n="@@ui_baa5503537a8">Close preview</button></div>
+          </div>
+        }
+      </div>
+    }
+    <section class="panel editor-head">
+      <div class="section-head"><div><div class="eyebrow muted" i18n="@@ui_84134912801c">WORKING DRAFT</div><h2 i18n="@@ui_0697ddb2bc1c">Assessment editor</h2>
+        <p i18n="@@ui_434846ac7551">Edits save as you work. Save a version to keep a snapshot.</p></div><span class="badge green">{{ points(assessment) }} <ng-container i18n="@@ui_25d11081583e">total points</ng-container></span></div>
+      <div class="button-row">
+        <button class="btn small" (click)="vm.saveVersion('Teacher')" [disabled]="vm.busy" i18n="@@ui_80cb5875f9de">Save version</button>
+        <button class="btn small" (click)="vm.compareDraft()" [disabled]="!vm.revisions.length"><studio-icon name="compare" /> <ng-container i18n="@@ui_45bb083ac322">Compare with previous</ng-container></button>
+        <button class="btn small" type="button" (click)="vm.export(vm.settings.brief.documentType?.audience === 'teacher' ? 'teacher' : 'student', 'print')" [disabled]="vm.busy" [title]="vm.previewTitle">
+          <studio-icon name="preview" /><ng-container i18n="@@previewDocument">Preview</ng-container>
+        </button>
+        <button class="btn small primary" (click)="markReady()" [disabled]="vm.busy" i18n="@@ui_70929d020540">Mark as ready</button>
+      </div>
+      <label class="field mt-5"><ng-container i18n="@@ui_3859bdaa8c6f">Document title</ng-container><input maxlength="180" [(ngModel)]="assessment.title" (ngModelChange)="vm.change()"></label>
+      <label class="field"><ng-container i18n="@@ui_6fd9abeecad0">Student instructions</ng-container><textarea rows="2" maxlength="2500" [(ngModel)]="assessment.instructions" (ngModelChange)="vm.change()"></textarea></label>
+      <label class="check-label mt-4"><input type="checkbox" [ngModel]="vm.showTeacher()" (ngModelChange)="vm.showTeacher.set($event)"> <ng-container i18n="@@ui_8aabb053b62e">Show teacher answers, scoring and evidence</ng-container></label>
+    </section>
+    @for (section of assessment.sections; track section.id; let sectionIndex = $index) {
+      <section class="panel">
+        <div class="section-head"><div class="eyebrow muted"><ng-container i18n="@@ui_115cb610bfdd">SECTION</ng-container> {{ sectionIndex + 1 }}</div>
+          @if (!section.questions.length && assessment.sections.length > 1) {
+            <button class="icon-button" i18n-aria-label="@@ui_ae77c6b21702" aria-label="Remove empty section" (click)="removeSection(sectionIndex)"><studio-icon name="trash" /></button>
+          }
+        </div>
+        <label class="field"><ng-container i18n="@@ui_58c386387936">Section title</ng-container><input maxlength="140" [(ngModel)]="section.title" (ngModelChange)="vm.change()"></label>
+        <label class="field"><ng-container i18n="@@ui_f2709b2a749d">Section instructions</ng-container><textarea rows="2" maxlength="1500" [(ngModel)]="section.instructions" (ngModelChange)="vm.change()"></textarea></label>
+        <div class="questions">
+          @for (question of section.questions; track question.id; let index = $index) {
+            <article class="question">
+              <div class="question-header"><span class="question-number">{{ index + 1 }}</span><strong><ng-container i18n="@@ui_002ff598115d">Question</ng-container> {{ index + 1 }}</strong><span class="grow"></span>
+                <button class="icon-button" [disabled]="index === 0" i18n-aria-label="@@ui_3a0cbeabac44" aria-label="Move question up" (click)="move(section, index, -1)"><studio-icon name="up" /></button>
+                <button class="icon-button" [disabled]="index + 1 === section.questions.length" i18n-aria-label="@@ui_9261fd8e95ab" aria-label="Move question down" (click)="move(section, index, 1)"><studio-icon name="bottom" /></button>
+                <button class="icon-button" i18n-aria-label="@@ui_d1ca96e407f1" aria-label="Remove question" (click)="removeQuestion(section, index)"><studio-icon name="trash" /></button>
+              </div>
+              <label class="field"><ng-container i18n="@@ui_dda93f7107d8">Question text</ng-container><textarea rows="3" maxlength="2200" [(ngModel)]="question.prompt" (ngModelChange)="vm.change()"></textarea></label>
+              <div class="field-grid">
+                <label class="field"><ng-container i18n="@@ui_4b2a6a314956">Points</ng-container><input type="number" min="0" max="500" [(ngModel)]="question.points" (ngModelChange)="vm.change()"></label>
+                <label class="field"><ng-container i18n="@@ui_aad176c3bace">Answer lines</ng-container><input type="number" min="0" max="12" [(ngModel)]="question.lines" (ngModelChange)="vm.change()"></label>
+              </div>
+              @if (vm.showTeacher()) {
+                <div class="teacher-fields">
+                  <label class="field"><ng-container i18n="@@ui_2acd294c79e0">Teacher answer</ng-container><textarea rows="2" maxlength="3500" [(ngModel)]="question.answer" (ngModelChange)="vm.change()"></textarea></label>
+                  <label class="field"><ng-container i18n="@@ui_58c642b99773">Scoring guidance</ng-container><textarea rows="2" maxlength="3500" [(ngModel)]="question.rubric" (ngModelChange)="vm.change()"></textarea></label>
+                  @for (source of evidenceFor(assessment, question); track source.id) {
+                    <details class="evidence"><summary><studio-icon name="paperclip" /> {{ source.name }} <ng-container i18n="@@ui_4b10aa3e6014">· passage</ng-container> {{ source.ordinal + 1 }}</summary><blockquote>{{ source.text }}</blockquote></details>
+                  }
+                </div>
+              }
+              <div class="button-row mt-3">
+                <button class="btn small" [disabled]="vm.busy || !!vm.active" (click)="vm.generate(question)"><studio-icon name="spark" /> <ng-container i18n="@@ui_4151daffc225">Regenerate question</ng-container></button>
+                @if (assessment.sections.length > 1) {
+                  <select #destination class="small-select" [attr.aria-label]="ui('Move question ') + (index + 1) + ui(' to section')" (change)="moveTo(section, question, destination.value)">
+                    <option value="" i18n="@@ui_043a84d18579">Move to section…</option>
+                    @for (other of assessment.sections; track other.id) { @if (other.id !== section.id) { <option [value]="other.id">{{ other.title }}</option> } }
+                  </select>
+                }
+              </div>
+            </article>
+          }
+        </div>
+        <button class="btn small mt-3" (click)="addQuestion(section)"><studio-icon name="plus" /> <ng-container i18n="@@ui_377e08d43a6c">Add question</ng-container></button>
+      </section>
+    }
+    <div class="button-row"><button class="btn small" [disabled]="assessment.sections.length >= 8" (click)="addSection()"><studio-icon name="plus" /> <ng-container i18n="@@ui_f2cd7c777e16">Add section</ng-container></button></div>
+    @if (vm.showTeacher()) {
+      <section class="panel"><h2 i18n="@@ui_3fa69a4b965d">Private teacher notes</h2>
+        <label class="field"><span class="sr-only" i18n="@@ui_3fa69a4b965d">Private teacher notes</span><textarea rows="3" maxlength="3500" [(ngModel)]="assessment.teacherNotes" (ngModelChange)="vm.change()"></textarea></label>
+      </section>
+    }
+  </div>
+} @else {
+  <div class="panel empty-state"><span class="empty-icon"><studio-icon name="edit" /></span><h2 i18n="@@ui_edae8b53d2bc">No draft yet</h2>
+    <p i18n="@@ui_05d56162ab5d">Generate from your brief, or start writing questions yourself.</p>
+    <button class="btn" (click)="editBlank()" i18n="@@ui_c97e2d082cef">Start an empty draft</button></div>
+}

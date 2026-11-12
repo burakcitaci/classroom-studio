@@ -1,0 +1,247 @@
+@if (loading()) {
+  <div class="panel loading" role="status"><span class="spinner"></span> <ng-container i18n="@@ui_ecc16576ff1b">Opening classes…</ng-container></div>
+} @else {
+  @if (error()) {
+    <div class="message danger" role="alert">
+      <studio-icon name="warning" /><div>{{ error() }}</div>
+      <button class="btn small" type="button" (click)="retry()" i18n="@@ui_042c862e4467">Try again</button>
+    </div>
+  }
+
+  @if (!classId()) {
+    <section class="page-heading">
+      <div>
+
+        <h1 i18n="@@ui_ed1846afee3b">Classes</h1>
+        <p i18n="@@ui_a12c4169fb5a">Plan lessons and keep your assessments with the class that uses them.</p>
+      </div>
+      <button brnButton class="btn primary" type="button" (click)="newClass()"><studio-icon name="plus" /> <ng-container i18n="@@ui_184f5c77d91d">Create class</ng-container></button>
+    </section>
+
+    @if (!classes().length && !error()) {
+      <section class="first-class">
+        <span class="empty-icon"><studio-icon name="book" /></span>
+        <div>
+          <h2 i18n="@@ui_4367c3c082b5">No classes yet</h2>
+          <p i18n="@@ui_98caa965f0e1">Create a class to keep its lessons, learning goals, and documents together.</p>
+          <button class="btn small" type="button" (click)="newClass(true)"><ng-container i18n="@@ui_5265715c8694">Use the Biology example</ng-container> <studio-icon name="arrow" /></button>
+        </div>
+      </section>
+    } @else if (classes().length) {
+      <section class="class-list" i18n-aria-label="@@ui_202cfc582315" aria-label="Your classes">
+        <div class="class-toolbar">
+          <div class="segmented" i18n-aria-label="@@ui_89d341f9e7f4" aria-label="Class status">
+            <button type="button" [attr.aria-pressed]="!archived()" (click)="archived.set(false)"><ng-container i18n="@@ui_a733b809d2f1">Active</ng-container> <span>{{ activeCount() }}</span></button>
+            <button type="button" [attr.aria-pressed]="archived()" (click)="archived.set(true)"><ng-container i18n="@@ui_eddc813f35b1">Archived</ng-container> <span>{{ archiveCount() }}</span></button>
+          </div>
+          <label class="class-search"><studio-icon name="search" />
+            <input type="search" i18n-aria-label="@@ui_26d75c3db905" aria-label="Search classes" i18n-placeholder="@@ui_26d75c3db905" placeholder="Search classes" [ngModel]="search()" (ngModelChange)="search.set($event)">
+          </label>
+        </div>
+        <div class="class-rows">
+          @for (item of filtered(); track item.id) {
+            <button type="button" class="class-row" (click)="openClass(item.id)">
+              <span class="doc-icon"><studio-icon name="book" /></span>
+              <span class="class-label">
+                <strong>{{ item.title }}</strong>
+                <small>{{ item.subject }} · {{ item.grade }}{{ item.schoolYear ? ' · ' + item.schoolYear : '' }}</small>
+              </span>
+              <span class="row-counts">
+                <span class="row-count"><studio-icon name="book" /> {{ item.lessonCount }} {{ item.lessonCount === 1 ? ui('lesson') : ui('lessons') }}</span>
+                <span class="row-count"><studio-icon name="docs" /> {{ item.documentCount }} {{ item.documentCount === 1 ? ui('document') : ui('documents') }}</span>
+              </span>
+              <studio-icon class="faint" name="chevron" />
+            </button>
+          } @empty {
+            <div class="empty-grid">
+              <h2>{{ archived() ? ui('No archived classes here') : ui('No matching classes') }}</h2>
+              <p>{{ search() ? ui('Try another subject, grade, or title.') : ui('Change the filter or create a class.') }}</p>
+            </div>
+          }
+        </div>
+      </section>
+    }
+  } @else if (detail(); as data) {
+    <nav class="class-trail" i18n-aria-label="@@ui_bc132d213efc" aria-label="Class location">
+      <button type="button" class="link-button" (click)="openClass()" i18n="@@ui_ed1846afee3b">Classes</button>
+      <studio-icon name="chevron" />
+      @if (lessonId()) {
+        <button type="button" class="link-button" (click)="openClass(data.classroom.id)">{{ data.classroom.title }}</button>
+        <studio-icon name="chevron" />
+        <span i18n="@@ui_188ecdea21f3">Lesson</span>
+      } @else {
+        <span>{{ data.classroom.title }}</span>
+      }
+    </nav>
+
+    @if (lesson(); as activeLesson) {
+      <section class="page-heading detail-heading">
+        <div>
+
+          <h1>{{ activeLesson.title }}</h1>
+          <p>{{ data.classroom.subject }} · {{ data.classroom.grade }}{{ activeLesson.date ? ' · ' + dateLabel(activeLesson.date) : '' }}</p>
+        </div>
+        <div class="button-row">
+          <button class="btn" type="button" (click)="editLesson(data.classroom.id, activeLesson)"><studio-icon name="edit" /> <ng-container i18n="@@ui_ef9cbd15526e">Edit lesson</ng-container></button>
+          @if (!data.classroom.archived) {
+            <button brnButton class="btn primary" type="button" (click)="newDocument(data.classroom, activeLesson)"><studio-icon name="plus" /> <ng-container i18n="@@ui_fc51cb7ddc24">Create document</ng-container></button>
+          }
+        </div>
+      </section>
+      <div class="planning-grid">
+        <section class="panel">
+          <h2 i18n="@@ui_d00fc7155f0b">Lesson overview</h2>
+          @if (activeLesson.description) { <p class="long-text">{{ activeLesson.description }}</p> }
+          @else { <p i18n="@@ui_7f0ebd19306c">Add the key ideas or activities you want to cover.</p> }
+          <div class="learning-goals">
+            <h3 class="goals-heading"><studio-icon name="check" /> <ng-container i18n="@@ui_c46ae5ce4cee">Learning goals</ng-container></h3>
+            @if (activeLesson.goals) { <p class="long-text">{{ activeLesson.goals }}</p> }
+            @else { <p i18n="@@ui_591744412f37">Add learning goals to reuse them in assessments for this lesson.</p> }
+          </div>
+        </section>
+        <section class="panel">
+          <h2 i18n="@@ui_5f6161b2eae2">Lesson documents</h2>
+          <p i18n="@@ui_676298b73f9a">Assessments and worksheets prepared for this lesson.</p>
+          <studio-class-documents [documents]="documents()" (openDocument)="openDocument($event)" />
+        </section>
+      </div>
+    } @else if (lessonId()) {
+      <section class="panel"><h2 i18n="@@ui_433ffdeb8b72">Lesson not found</h2><p i18n="@@ui_d1a5e3687540">Choose a lesson from this class.</p></section>
+    } @else {
+      <section class="page-heading detail-heading">
+        <div>
+
+          <h1>{{ data.classroom.title }}</h1>
+          <p>{{ data.classroom.subject }} · {{ data.classroom.grade }}{{ data.classroom.schoolYear ? ' · ' + data.classroom.schoolYear : '' }}</p>
+        </div>
+        <div class="button-row">
+          <button class="btn" type="button" (click)="editClass(data.classroom)"><studio-icon name="edit" /> <ng-container i18n="@@ui_1f0c0a219547">Edit class</ng-container></button>
+          @if (!data.classroom.archived) {
+            <button brnButton class="btn primary" type="button" (click)="editLesson(data.classroom.id)"><studio-icon name="plus" /> <ng-container i18n="@@ui_a7f21a6a0bf2">Add lesson</ng-container></button>
+          }
+        </div>
+      </section>
+      @if (data.classroom.archived) {
+        <div class="message progress"><studio-icon name="history" /><div i18n="@@ui_8e40a65b85b6">This class is archived. Reopen it to add lessons or documents.</div></div>
+      }
+      <div class="planning-grid">
+        <section class="panel">
+          <div class="section-head"><div><h2><ng-container i18n="@@ui_cb9ce97bfc9a">Lessons</ng-container> <span class="count">{{ data.lessons.length }}</span></h2></div></div>
+          <div class="lesson-list">
+            @for (item of data.lessons; track item.id; let number = $index) {
+              <button type="button" class="lesson-row" (click)="openClass(data.classroom.id, item.id)">
+                <span class="lesson-number">{{ number + 1 }}</span>
+                <span class="lesson-label">
+                  <strong>{{ item.title }}</strong>
+                  <small>{{ item.date ? dateLabel(item.date) : ui('Unscheduled') }} · {{ item.documentCount }} {{ item.documentCount === 1 ? ui('document') : ui('documents') }}</small>
+                </span>
+                <studio-icon name="chevron" />
+              </button>
+            } @empty {
+              <div class="lessons-empty">
+                <span class="empty-icon"><studio-icon name="book" /></span>
+                <div><strong i18n="@@ui_e6ac33b7483f">No lessons yet</strong><p i18n="@@ui_0ff360b51049">Start with the next topic you plan to teach.</p></div>
+              </div>
+            }
+          </div>
+        </section>
+        <div class="stack">
+          <section class="panel">
+            <div class="section-head">
+              <div><h2 i18n="@@ui_c89b0a8476f9">Class documents</h2></div>
+              @if (!data.classroom.archived) {
+                <button class="btn small" type="button" (click)="newDocument(data.classroom)"><studio-icon name="plus" /> <ng-container i18n="@@ui_fc51cb7ddc24">Create document</ng-container></button>
+              }
+            </div>
+            <studio-class-documents [documents]="documents()" (openDocument)="openDocument($event)" />
+          </section>
+          <section class="panel class-details">
+            <h2 i18n="@@ui_3e4b46e23c12">Class details</h2>
+            @if (data.classroom.description) { <p class="long-text">{{ data.classroom.description }}</p> }
+            <div class="class-details-footer">
+              <span class="badge">{{ data.classroom.language === 'de' ? ui('German') : ui('English') }} <ng-container i18n="@@ui_ec96667ac8c5">documents</ng-container></span>
+              <button type="button" class="link-button" [disabled]="saving()" (click)="archive(data.classroom)">
+                {{ data.classroom.archived ? ui('Reopen class') : ui('Archive class') }}
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
+    }
+  } @else {
+    <button type="button" class="btn" (click)="openClass()" i18n="@@ui_0a2ab86a229d">Back to classes</button>
+  }
+}
+
+@if (form(); as entry) {
+  @switch (entry.kind) {
+    @case ('class') {
+      <studio-teacher-dialog [title]="entry.id ? ui('Edit class') : ui('Create class')" [busy]="saving()" (closed)="close()"
+        i18n-description="@@ui_1fd72041a15c" description="Set the details Studio can reuse when you create documents.">
+        <form (ngSubmit)="save(entry)">
+          @if (formError()) { <div class="message danger" role="alert">{{ formError() }}</div> }
+          <label class="field"><ng-container i18n="@@ui_069ae159597f">Class title</ng-container>
+            <input name="title" [(ngModel)]="entry.value.title" required maxlength="120" i18n-placeholder="@@ui_ee9cfc26417b" placeholder="e.g. Biology · Grade 5">
+          </label>
+          <div class="field-grid">
+            <label class="field"><ng-container i18n="@@ui_8d183dbdcea3">Subject</ng-container><input name="subject" [(ngModel)]="entry.value.subject" required maxlength="120" i18n-placeholder="@@ui_ffa48e0bbc31" placeholder="Biology"></label>
+            <label class="field"><ng-container i18n="@@ui_1cf55c989eac">Grade / year group</ng-container><input name="grade" [(ngModel)]="entry.value.grade" required maxlength="80" i18n-placeholder="@@ui_75fd665a6b14" placeholder="Grade 5"></label>
+            <label class="field"><ng-container i18n="@@ui_c7d05ac0b94d">School year</ng-container> <span class="faint" i18n="@@ui_0c6c4102d4df">Optional</span><input name="schoolYear" [(ngModel)]="entry.value.schoolYear" maxlength="32" placeholder="2026–27"></label>
+            <label class="field"><ng-container i18n="@@ui_63c5b6c1a617">Default document language</ng-container><select name="language" [(ngModel)]="entry.value.language">
+              <option value="en" i18n="@@ui_649df08a448e">English</option><option value="de" i18n="@@ui_da91388c72d3">German</option>
+            </select></label>
+          </div>
+          <label class="field mt-3"><ng-container i18n="@@ui_55f8ebc805e6">Description</ng-container> <span class="faint" i18n="@@ui_0c6c4102d4df">Optional</span>
+            <textarea name="description" [(ngModel)]="entry.value.description" rows="3" maxlength="2000" i18n-placeholder="@@ui_283b84c16a06" placeholder="What will this class cover?"></textarea>
+          </label>
+          <div class="button-row dialog-actions">
+            <button class="btn" type="button" [disabled]="saving()" (click)="close()" i18n="@@ui_77dfd2135f4d">Cancel</button>
+            <button brnButton class="btn primary" type="submit" [disabled]="saving() || !entry.value.title.trim() || !entry.value.subject.trim() || !entry.value.grade.trim()">
+              {{ entry.id ? ui('Save class') : ui('Create class') }}
+            </button>
+          </div>
+        </form>
+      </studio-teacher-dialog>
+    }
+    @case ('lesson') {
+      <studio-teacher-dialog [title]="entry.id ? ui('Edit lesson') : ui('Add lesson')" [busy]="saving()" (closed)="close()"
+        i18n-description="@@ui_44734bd9e021" description="Write enough to recognize the lesson and plan what students should learn.">
+        <form (ngSubmit)="save(entry)">
+          @if (formError()) { <div class="message danger" role="alert">{{ formError() }}</div> }
+          <label class="field"><ng-container i18n="@@ui_8bcf8d731acd">Lesson title</ng-container>
+            <input name="title" [(ngModel)]="entry.value.title" required maxlength="160" i18n-placeholder="@@ui_81381f298c86" placeholder="e.g. Cells and living things">
+          </label>
+          <label class="field"><ng-container i18n="@@ui_dbb233a5eb58">Lesson date</ng-container> <span class="faint" i18n="@@ui_0c6c4102d4df">Optional</span><input type="date" name="date" [(ngModel)]="entry.value.date"></label>
+          <label class="field"><ng-container i18n="@@ui_55f8ebc805e6">Description</ng-container> <span class="faint" i18n="@@ui_0c6c4102d4df">Optional</span>
+            <textarea name="description" [(ngModel)]="entry.value.description" rows="3" maxlength="1800" i18n-placeholder="@@ui_b761bafa05b8" placeholder="Key ideas, activities, or materials."></textarea>
+          </label>
+          <label class="field"><ng-container i18n="@@ui_c46ae5ce4cee">Learning goals</ng-container> <span class="faint" i18n="@@ui_0c6c4102d4df">Optional</span>
+            <textarea name="goals" [(ngModel)]="entry.value.goals" rows="3" maxlength="1300" i18n-placeholder="@@ui_1f5ce2622ce2" placeholder="Students can identify and describe the parts of a plant cell."></textarea>
+          </label>
+          <div class="button-row dialog-actions">
+            <button class="btn" type="button" [disabled]="saving()" (click)="close()" i18n="@@ui_77dfd2135f4d">Cancel</button>
+            <button brnButton class="btn primary" type="submit" [disabled]="saving() || !entry.value.title.trim()">{{ entry.id ? ui('Save lesson') : ui('Add lesson') }}</button>
+          </div>
+        </form>
+      </studio-teacher-dialog>
+    }
+    @case ('document') {
+      <studio-teacher-dialog i18n-title="@@ui_fc51cb7ddc24" title="Create document" [description]="ui('File this document under ') + entry.label + '.'" [busy]="saving()" (closed)="close()">
+        <form (ngSubmit)="save(entry)">
+          @if (formError()) { <div class="message danger" role="alert">{{ formError() }}</div> }
+          <label class="field"><ng-container i18n="@@ui_300b6ef0cdd8">Document type</ng-container>
+            <select name="kind" [(ngModel)]="entry.value">
+              @for (kind of kinds; track kind) { <option [value]="kind">{{ ui(kind) }}</option> }
+              @for (type of customTypes; track type.id) { <option [value]="type.id">{{ type.title }}</option> }
+            </select>
+          </label>
+          <p class="form-help" i18n="@@ui_ded2922df14a">Review the prefilled brief before you generate.</p>
+          <div class="button-row dialog-actions">
+            <button class="btn" type="button" [disabled]="saving()" (click)="close()" i18n="@@ui_77dfd2135f4d">Cancel</button>
+            <button brnButton class="btn primary" type="submit" [disabled]="saving()" i18n="@@ui_fc51cb7ddc24">Create document</button>
+          </div>
+        </form>
+      </studio-teacher-dialog>
+    }
+  }
+}

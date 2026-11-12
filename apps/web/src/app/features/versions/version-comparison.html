@@ -1,0 +1,51 @@
+<section class="panel">
+  <div class="section-head"><div><div class="eyebrow muted" i18n="@@ui_0238c7b34879">SIDE BY SIDE</div><h2 i18n="@@ui_a7c849e6eaaa">Compare versions</h2>
+    <p i18n="@@ui_4121d503d4a6">See how questions, instructions and generation settings changed.</p></div><button class="btn small" (click)="vm.compareDraft()" [disabled]="!vm.revisions.length" i18n="@@ui_02d549c621e2">Draft vs previous</button></div>
+  <div class="field-grid compare-grid">
+    <label class="field"><ng-container i18n="@@ui_743697cd2437">Earlier version</ng-container><select [(ngModel)]="vm.compareLeft"><option value="" i18n="@@ui_bd007d33c5e8">Choose a version</option>
+      @if (vm.draft) { <option value="working" i18n="@@ui_9b4b98750504">Working draft</option> }
+      @for (version of vm.revisions; track version.id) { <option [value]="version.id"><ng-container i18n="@@ui_2da600bf9404">Version</ng-container> {{ version.number }} · {{ ui(version.kind) }}</option> }
+    </select></label>
+    <label class="field"><ng-container i18n="@@ui_3a04b1f074cb">Later version</ng-container><select [(ngModel)]="vm.compareRight"><option value="" i18n="@@ui_bd007d33c5e8">Choose a version</option>
+      @if (vm.draft) { <option value="working" i18n="@@ui_9b4b98750504">Working draft</option> }
+      @for (version of vm.revisions; track version.id) { <option [value]="version.id"><ng-container i18n="@@ui_2da600bf9404">Version</ng-container> {{ version.number }} · {{ ui(version.kind) }}</option> }
+    </select></label>
+  </div>
+  @if (diff; as changes) {
+    <div class="comparison-list">
+      <h3 i18n="@@ui_01b141ea985a">Document and generation settings</h3>
+      @for (row of changes.overview.concat(changes.settings); track row.key) {
+        @if (row.left !== row.right) {
+          <div class="diff-block"><div class="diff-label">{{ ui(row.key) }} <span class="badge amber" i18n="@@ui_978e8c33224d">Edited</span></div>
+            <div class="compare-grid"><div class="diff-side before">{{ row.left || '—' }}</div><div class="diff-side after">{{ row.right || '—' }}</div></div></div>
+        }
+      }
+      @if (sourceDiff; as sources) {
+        @if (sources.left !== sources.right) {
+          <div class="diff-block"><div class="diff-label"><ng-container i18n="@@ui_6d3a3f9c5f8b">Selected sources</ng-container> <span class="badge amber" i18n="@@ui_978e8c33224d">Edited</span></div>
+            <div class="compare-grid"><div class="diff-side before">{{ sources.left }}</div><div class="diff-side after">{{ sources.right }}</div></div></div>
+        }
+      }
+      <h3 i18n="@@ui_9a1fc1731f62">Questions</h3>
+      @for (row of changes.questions; track row.id) {
+        <div class="diff-block"><div class="diff-label">
+          @for (label of row.labels; track label) {
+            <span class="badge" [class.green]="label === 'Added'" [class.red]="label === 'Removed'" [class.amber]="label === 'Edited' || label === 'Reordered'">{{ ui(label) }}</span>
+          } @empty { <span class="badge" i18n="@@ui_51ed65113221">Unchanged</span> }
+          @if (row.edited.length) { {{ row.edited.map(ui).join(' · ') }} }
+        </div>
+        <div class="compare-grid">
+          @for (side of [row.before, row.after]; track $index; let index = $index) {
+            <div class="diff-side" [class.before]="index === 0 && !!row.labels.length" [class.after]="index === 1 && !!row.labels.length">
+              @if (side) {
+                <small>{{ side.section }} <ng-container i18n="@@ui_34ebefcebb74">· Q</ng-container>{{ side.position }} · {{ side.question.points }} <ng-container i18n="@@ui_4abdfc6d463e">pts</ng-container></small><p>{{ side.question.prompt }}</p>
+                <p><strong i18n="@@ui_a16a4eda7cb2">Answer</strong> {{ side.question.answer || '—' }}</p><p><strong i18n="@@ui_a6e081bd4fc6">Scoring</strong> {{ side.question.rubric || '—' }}</p>
+                <p><strong i18n="@@ui_2274881450a1">Answer space</strong> {{ side.question.lines }} <ng-container i18n="@@ui_8525aaa8359e">lines</ng-container></p>
+              } @else { <span class="faint">—</span> }
+            </div>
+          }
+        </div></div>
+      }
+    </div>
+  } @else { <p class="muted mt-4" i18n="@@ui_3257d0918a2a">Select two drafts to compare.</p> }
+</section>

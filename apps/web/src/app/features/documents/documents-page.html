@@ -1,0 +1,94 @@
+<section class="page-heading">
+  <div>
+    <h1 i18n="@@ui_687c82861c95">Documents</h1>
+    <p i18n="@@ui_881144b19567">Find and create assessments for any class or lesson.</p>
+  </div>
+  <div class="button-row">
+    <button class="btn" type="button" [disabled]="vm.busy" (click)="vm.create(createKind, true)">
+      <studio-icon name="spark" /> {{ vm.busy ? ui('Loading sample…') : ui('Try a sample exam') }}
+    </button>
+    <button type="button" class="btn" (click)="showTypes = true" i18n="@@manageDocumentTypes">Manage document types</button>
+    <button brnButton class="btn primary" type="button" (click)="openCreate()"><studio-icon name="plus" /> <ng-container i18n="@@ui_fc51cb7ddc24">Create document</ng-container></button>
+  </div>
+</section>
+
+<section class="library" i18n-aria-label="@@ui_911b44bdfad4" aria-label="Document library">
+  <div class="library-toolbar">
+    <h2><ng-container i18n="@@ui_5eb6fe96256e">All documents</ng-container> <span class="count">{{ filtered.length }}</span></h2>
+    <div class="filters">
+      <label class="search"><studio-icon name="search" />
+        <input type="search" i18n-aria-label="@@ui_ef37afa17c14" aria-label="Search documents" i18n-placeholder="@@ui_ef37afa17c14" placeholder="Search documents" [(ngModel)]="search">
+      </label>
+      <label class="select-filter"><studio-icon name="book" />
+        <select i18n-aria-label="@@ui_a5a9088b9155" aria-label="Filter by class" [(ngModel)]="classFilter">
+          <option value="all" i18n="@@ui_341576bd8bc9">All classes</option>
+          <option value="unfiled" i18n="@@ui_c1aca7367373">Unfiled</option>
+          @for (option of classOptions; track option[0]) { <option [value]="option[0]">{{ option[1] }}</option> }
+        </select>
+      </label>
+      <label class="select-filter"><studio-icon name="filter" />
+        <select i18n-aria-label="@@ui_53d21450d63a" aria-label="Filter document type" [(ngModel)]="filter">
+          <option value="All types" i18n="@@ui_30c8a0fc9c1a">All types</option>
+          @for (kind of kinds; track kind) { <option [value]="kind">{{ ui(kind) }}</option> }
+          @for (type of vm.documentTypes.items(); track type.id) { <option [value]="type.id">{{ type.title }}</option> }
+        </select>
+      </label>
+    </div>
+  </div>
+
+  @if (filtered.length) {
+    <table>
+      <thead><tr><th scope="col" i18n="@@ui_e214b8a29923">Document</th><th scope="col" i18n="@@ui_3deb74565196">Type</th><th scope="col" i18n="@@ui_bae7d5be7082">Status</th><th scope="col" i18n="@@ui_f2f8570ddd7b">Updated</th></tr></thead>
+      <tbody>
+        @for (item of filtered; track item.id) {
+          <tr>
+            <td>
+              <button class="document-title" type="button" (click)="vm.open(item.id, item.status === 'Planning' ? 'brief' : 'editor', true)">
+                <span class="doc-icon"><studio-icon name="docs" /></span>
+                <span class="document-label"><strong>{{ item.title }}</strong><small>{{ summaryLabel(item) }}</small></span>
+                <studio-icon class="row-arrow" name="chevron" />
+              </button>
+            </td>
+            <td>{{ item.documentType?.title ?? ui(item.kind) }}</td>
+            <td><span class="badge" [class.green]="item.status === 'Ready'">{{ ui(item.status) }}</span></td>
+            <td>{{ shortDate(item.updated) }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  } @else {
+    <div class="empty-library">
+      <span class="empty-icon"><studio-icon [name]="vm.list.length ? 'search' : 'docs'" /></span>
+      <h3>{{ vm.list.length ? ui('No matching documents') : ui('No documents yet') }}</h3>
+      <p>{{ vm.list.length ? ui('Try a different search or clear the filters.') : ui('Create a document or try the sample exam to see how Studio works.') }}</p>
+      @if (vm.list.length) { <button type="button" class="btn small" (click)="clearFilters()" i18n="@@ui_412226715c56">Clear filters</button> }
+    </div>
+  }
+</section>
+
+@if (showCreate) {
+  <studio-teacher-dialog i18n-title="@@ui_fc51cb7ddc24" title="Create document" i18n-description="@@ui_a92f92b4ff4b" description="Choose the kind of assessment you want to make."
+    [busy]="vm.busy" (closed)="showCreate = false">
+    <form (ngSubmit)="createDocument()">
+      @if (createError()) { <div class="message danger" role="alert">{{ createError() }}</div> }
+      <fieldset class="kind-options">
+        <legend class="sr-only" i18n="@@ui_300b6ef0cdd8">Document type</legend>
+        @for (kind of kinds; track kind) {
+          <label class="choice" [class.selected]="createKind === kind">
+            <input type="radio" name="create-kind" [value]="kind" [(ngModel)]="createKind">
+            <span>{{ ui(kind) }}</span>
+          </label>
+        }
+        @for (type of vm.documentTypes.items(); track type.id) {
+          <label class="choice" [class.selected]="createKind === type.id"><input type="radio" name="create-kind" [value]="type.id" [(ngModel)]="createKind"><span>{{ type.title }}</span></label>
+        }
+      </fieldset>
+      <div class="button-row justify-end mt-5">
+        <button class="btn" type="button" [disabled]="vm.busy" (click)="showCreate = false" i18n="@@ui_77dfd2135f4d">Cancel</button>
+        <button brnButton class="btn primary" type="submit" [disabled]="vm.busy" i18n="@@ui_fc51cb7ddc24">Create document</button>
+      </div>
+    </form>
+  </studio-teacher-dialog>
+}
+
+@if (showTypes) { <studio-document-types-manager (closed)="showTypes = false" (selected)="useType($event)" /> }

@@ -1,4 +1,21 @@
 services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: classroom_studio
+      POSTGRES_USER: classroom_studio
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-classroom_studio_dev}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - classroom_database:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U classroom_studio -d classroom_studio"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
   qdrant:
     image: qdrant/qdrant:v1.15.5
     environment:
@@ -9,4 +26,5 @@ services:
       - classroom_vectors:/qdrant/storage
 
 volumes:
+  classroom_database:
   classroom_vectors:

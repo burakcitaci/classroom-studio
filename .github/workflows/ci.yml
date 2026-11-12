@@ -5,6 +5,20 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NX_DAEMON: 'false'
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: classroom_studio
+          POSTGRES_USER: classroom_studio
+          POSTGRES_PASSWORD: classroom_studio_dev
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U classroom_studio -d classroom_studio"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -14,6 +28,7 @@ jobs:
       - run: corepack enable
       - run: yarn install --immutable
       - run: yarn lint
+      - run: yarn i18n:check
       - run: yarn build
       - run: yarn test
       - run: yarn playwright install --with-deps chromium

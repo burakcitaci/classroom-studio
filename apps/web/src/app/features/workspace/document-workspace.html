@@ -1,0 +1,113 @@
+@if (vm.doc; as doc) {
+  <header class="document-header">
+    <div class="document-toolbar">
+      <nav class="document-location" i18n-aria-label="@@documentNavigation" aria-label="Document navigation">
+        <button [disabled]="vm.savingPlan" type="button" class="link-button document-back" i18n-aria-label="@@backToDocuments" aria-label="Back to documents" (click)="vm.open(undefined, 'brief', true)">
+          <studio-icon name="arrow" /><span i18n="@@ui_687c82861c95">Documents</span>
+        </button>
+        <studio-icon class="faint" name="chevron" />
+        @if (doc.context; as context) {
+          <button [disabled]="vm.savingPlan" type="button" class="link-button" (click)="vm.openClass(context.classId, undefined, true)">{{ context.classTitle }}</button>
+          <studio-icon class="faint" name="chevron" />
+          @if (context.lessonId && context.lessonTitle) {
+            <button [disabled]="vm.savingPlan" type="button" class="link-button" (click)="vm.openClass(context.classId, context.lessonId, true)">{{ context.lessonTitle }}</button>
+            <studio-icon class="faint" name="chevron" />
+          }
+          <span aria-current="page" i18n="@@documentDetails">Details</span>
+        } @else {
+          <span aria-current="page" i18n="@@ui_d4ab59f064bc">Unfiled document</span>
+        }
+      </nav>
+
+    </div>
+    <h1>{{ vm.heading }}</h1>
+    <div class="metadata">
+      <span class="badge" [class.green]="doc.ready">{{ doc.ready ? ui('Ready') : vm.draft ? ui('Draft') : ui('Planning') }}</span>
+      <span>
+        {{ vm.typeTitle }} · {{ vm.settings.brief.language === 'de' ? ui('German') : ui('English') }}
+        @if (vm.settings.brief.grade) { · {{ vm.settings.brief.grade }} }
+        @if (vm.draft) { · {{ points(vm.draft) }} <ng-container i18n="@@ui_819f41f05837">points</ng-container> }
+      </span>
+      <span class="save-indicator" aria-live="polite">{{ vm.dirty ? ui('Unsaved changes') : ui('Saved locally') }}</span>
+    </div>
+  </header>
+
+  <div class="generation-controls">
+    @if (vm.provider === 'ollama') {
+      <div class="model-controls">
+        <div class="field">
+          <label for="document-ollama-model" i18n="@@ui_51de63360bfb">Ollama model</label>
+          <select id="document-ollama-model" #modelChoice (change)="vm.chooseGenerationModel(modelChoice.value)"
+            [disabled]="vm.loadingModels || vm.busy || !!vm.active || !vm.ollamaModels.length">
+            <option value="" disabled [selected]="!vm.generationModel">{{ vm.loadingModels ? ui('Loading models…') : ui('Choose a model') }}</option>
+            @for (model of vm.ollamaModels; track model) {
+              <option [value]="model" [selected]="model === vm.generationModel">{{ model }}</option>
+            }
+          </select>
+        </div>
+        <button type="button" class="btn" i18n-aria-label="@@ui_ba6da3f2d367" aria-label="Refresh models" i18n-title="@@ui_ba6da3f2d367" title="Refresh models"
+          (click)="vm.loadModels()" [disabled]="vm.loadingModels">
+          <studio-icon name="refresh" />
+        </button>
+      </div>
+    }
+    <button brnButton class="btn primary" (click)="vm.generate()"
+      [disabled]="!vm.provider || vm.busy || vm.planEditing || !!vm.active || (vm.provider === 'ollama' && !vm.generationModel)">
+      <studio-icon name="spark" /> {{ vm.active ? ui('Generating…') : vm.draft ? ui('Generate new draft') : ui('Generate draft') }}
+    </button>
+    @if (vm.provider === 'demo') {
+      <p class="model-note" i18n="@@ui_2bfa89c0fe3f">Demo mode generates sample questions.</p>
+    }
+    @if (vm.provider === 'ollama' && vm.modelListError) {
+      <p class="model-note model-error" role="status">{{ vm.modelListError }}</p>
+    }
+  </div>
+
+  @if (showFiling) { <studio-document-filing [context]="doc.context" (closed)="showFiling = false" /> }
+  @if (vm.showExports && vm.draft) {
+    <studio-teacher-dialog i18n-title="@@ui_b7924d082df0" title="Export document" (closed)="vm.toggleExports()">
+      <div class="export-grid">
+        <section i18n-aria-label="@@ui_e04bab0e9fb5" aria-label="Student copy">
+          <h3 i18n="@@ui_e04bab0e9fb5">Student copy</h3>
+          <p i18n="@@ui_3041a7a266e4">Questions, points and answer space.</p>
+          <div class="button-row">
+            <button type="button" class="btn small" (click)="vm.export('student', 'docx')" i18n="@@ui_f98e5ce3b490">Download Word</button>
+            <button type="button" class="btn small" (click)="vm.export('student', 'print')" i18n="@@ui_9e7c0f331d31">Print preview</button>
+          </div>
+        </section>
+        <section i18n-aria-label="@@ui_7315ba900844" aria-label="Teacher copy">
+          <h3 i18n="@@ui_7315ba900844">Teacher copy</h3>
+          <p i18n="@@ui_55889c9a0860">Answers, scoring and source evidence.</p>
+          <div class="button-row">
+            <button type="button" class="btn small" (click)="vm.export('teacher', 'docx')" i18n="@@ui_f98e5ce3b490">Download Word</button>
+            <button type="button" class="btn small" (click)="vm.export('teacher', 'print')" i18n="@@ui_9e7c0f331d31">Print preview</button>
+          </div>
+        </section>
+      </div>
+    </studio-teacher-dialog>
+  }
+
+  <nav class="tabs" i18n-aria-label="@@ui_2c7b5eb4711a" aria-label="Document workspace">
+    @for (item of tabs; track item.id) {
+      <button [disabled]="vm.savingPlan" [class.selected]="vm.tab === item.id" [attr.aria-current]="vm.tab === item.id ? 'page' : null" (click)="vm.selectTab(item.id)">
+        <studio-icon [name]="item.icon" /> {{ ui(item.label) }}
+      </button>
+    }
+      <div class="workspace-actions">
+        <button type="button" class="btn small" aria-haspopup="dialog" (click)="showFiling = true" i18n="@@ui_9207b3344bca">Organize</button>
+        @if (vm.draft) {
+          <button type="button" class="btn small" aria-haspopup="dialog" (click)="vm.toggleExports()">
+            <studio-icon name="download" /> <ng-container i18n="@@ui_f3e4fadb9e37">Export</ng-container>
+          </button>
+        }
+      </div>
+  </nav>
+
+  @switch (vm.tab) {
+    @case ('brief') { <studio-assessment-brief /> }
+    @case ('editor') { <studio-assessment-editor /> }
+    @case ('history') { <studio-version-history /> }
+    @case ('compare') { <studio-version-comparison /> }
+    @case ('audit') { <studio-generation-audit /> }
+  }
+}

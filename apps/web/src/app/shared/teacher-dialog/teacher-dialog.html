@@ -1,0 +1,16 @@
+<brn-dialog state="open" [disableClose]="busy()" [aria-label]="title()" (closed)="closed.emit()">
+  <ng-template brnDialogContent>
+    <div class="teacher-dialog-panel">
+      <div class="dialog-heading">
+        <div>
+          <h2 brnDialogTitle>{{ title() }}</h2>
+          @if (description()) { <p brnDialogDescription>{{ description() }}</p> }
+        </div>
+        <button brnDialogClose class="icon-button" type="button" i18n-aria-label="@@ui_7b29020292a4" aria-label="Close dialog" [disabled]="busy()">
+          <studio-icon name="x" />
+        </button>
+      </div>
+      <ng-content />
+    </div>
+  </ng-template>
+</brn-dialog>

@@ -5,12 +5,15 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { apiClient, until } from '../tests/fixtures.mjs';
+import { postgresFixture } from '../tests/postgres-fixture.mjs';
+
+const database = await postgresFixture();
 
 const folder = await mkdtemp(join(tmpdir(), 'studio-ollama-'));
 const port = Number(process.env['STUDIO_SMOKE_PORT'] || 4373);
 const client = apiClient('http://127.0.0.1:' + port);
 const server = spawn(process.execPath, ['dist/api/apps/api/src/main.js'], {
-  env: { ...process.env, STUDIO_PROVIDER: 'ollama', STUDIO_PORT: String(port), STUDIO_DATA: folder },
+  env: { ...process.env, ...database.env, STUDIO_PROVIDER: 'ollama', STUDIO_PORT: String(port), STUDIO_DATA: folder },
   stdio: 'inherit',
 });
 try {
@@ -45,5 +48,6 @@ try {
     server.kill();
     await exit;
   }
+  await database.close();
   await rm(folder, { recursive: true, force: true });
 }

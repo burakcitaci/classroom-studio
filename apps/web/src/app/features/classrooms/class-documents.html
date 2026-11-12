@@ -1,0 +1,18 @@
+<div class="document-rows">
+  @for (document of documents(); track document.id) {
+    <button type="button" class="document-row" (click)="openDocument.emit(document)">
+      <span class="doc-icon"><studio-icon name="docs" /></span>
+      <span class="document-name">
+        <strong>{{ document.title }}</strong>
+        <small>{{ document.documentType?.title ?? ui(document.kind) }}{{ document.context?.lessonTitle ? ' · ' + document.context.lessonTitle : '' }}</small>
+      </span>
+      <span class="badge" [class.green]="document.status === 'Ready'">{{ ui(document.status) }}</span>
+      <studio-icon name="chevron" class="faint" />
+    </button>
+  } @empty {
+    <div class="documents-empty">
+      <studio-icon name="docs" />
+      <p i18n="@@ui_d8077325a6ee">No documents filed here yet.</p>
+    </div>
+  }
+</div>

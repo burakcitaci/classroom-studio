@@ -1,0 +1,33 @@
+<studio-teacher-dialog title="Document types" i18n-title="@@documentTypes" [busy]="busy()" (closed)="closed.emit()">
+  @if (error()) { <div class="message danger" role="alert">{{ error() }}</div> }
+  @if (form(); as entry) {
+    <label class="field"><span i18n="@@typeName">Type name</span><input name="type-title" [(ngModel)]="entry.title" maxlength="100" [disabled]="busy()" placeholder="e.g. Erwartungshorizont" i18n-placeholder="@@typeNamePlaceholder"></label>
+    <label class="field"><span i18n="@@typeAudience">Output</span><select name="type-audience" [(ngModel)]="entry.audience" [disabled]="busy()">
+      <option value="student" i18n="@@typeStudent">New tasks for students</option><option value="teacher" i18n="@@typeTeacher">Solutions or marking guide for teachers</option>
+    </select></label>
+    <label class="field"><span i18n="@@typeGuidance">Reusable guidance</span><textarea name="type-guidance" [(ngModel)]="entry.guidance" rows="6" maxlength="2500" [disabled]="busy()" placeholder="Describe the purpose, structure and expectations once." i18n-placeholder="@@typeGuidancePlaceholder"></textarea></label>
+    <p class="form-help" i18n="@@typeGuidanceHelp">The model combines this guidance with your topic-specific brief and selected materials. Existing documents keep their saved copy when a type changes.</p>
+    <div class="button-row dialog-actions">
+      <button type="button" class="btn" (click)="form.set(null)" [disabled]="busy()" i18n="@@ui_77dfd2135f4d">Cancel</button>
+      <button type="button" class="btn primary" (click)="save()" [disabled]="busy() || !entry.title.trim() || !entry.guidance.trim()" i18n="@@typeSaveAndUse">Save and use type</button>
+    </div>
+  } @else {
+    <p i18n="@@typesHelp">Save the instructions you reuse. Choose a type, then add only the topic and what is different for this document.</p>
+    <div class="button-row mt-3">
+      <button type="button" class="btn primary small" (click)="edit()"><studio-icon name="plus" /><span i18n="@@typeCreate">Create type</span></button>
+      <button type="button" class="btn small" (click)="example()" i18n="@@typeExample">Start with Erwartungshorizont</button>
+      <button type="button" class="link-button" (click)="types.load()" [disabled]="types.loading()" i18n="@@typesRefresh">Refresh types</button>
+    </div>
+    <div class="type-list">
+      @for (type of types.items(); track type.id) {
+        <article class="type-card"><h3>{{ type.title }}</h3><p class="long-text">{{ type.guidance }}</p>
+          <div class="button-row mt-2">
+            <button type="button" class="btn small primary" (click)="selected.emit(type)" [disabled]="busy()" i18n="@@typeUse">Use type</button>
+            <button type="button" class="btn small" (click)="edit(type)" [disabled]="busy()" i18n="@@typeEdit">Edit type</button>
+            <button type="button" class="link-button" (click)="archive(type)" [disabled]="busy()" i18n="@@typeArchive">Archive type</button>
+          </div>
+        </article>
+      } @empty { <p class="muted mt-3" i18n="@@typesEmpty">No reusable types yet. Create one or start with the marking-guide example.</p> }
+    </div>
+  }
+</studio-teacher-dialog>

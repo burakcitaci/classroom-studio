@@ -1,0 +1,45 @@
+<section class="panel"><div class="section-head"><div><div class="eyebrow muted" i18n="@@ui_477c9d8abd14">GENERATION RECORD</div><h2 i18n="@@ui_59fbfec3650c">Generation audit</h2>
+  <p i18n="@@ui_5fe706f84e5d">Inspect every attempt, the materials it used and its outcome.</p></div><span class="count">{{ vm.jobs.length }}</span></div>
+  @for (job of vm.jobs; track job.id) {
+    <div class="audit-card">
+      <button class="audit-summary" (click)="currentAudit = currentAudit === job.id ? undefined : job.id" [attr.aria-expanded]="currentAudit === job.id">
+        <span class="doc-icon"><studio-icon [name]="job.stage === 'failed' ? 'warning' : 'spark'" /></span>
+        <span class="grow"><strong>{{ job.settings.questionId ? ui('Question regeneration') : ui('Draft generation') }}</strong><small>{{ time(job.created) }} · {{ ui(job.settings.rag) }} · {{ job.model }}</small></span>
+        <span class="badge" [class.green]="job.stage === 'succeeded'" [class.red]="job.stage === 'failed'">{{ ui(job.stage) }}</span><studio-icon name="down" />
+      </button>
+      @if (currentAudit === job.id) {
+        <div class="audit-detail">
+          @if (job.error) { <div class="message danger">{{ ui(job.error) }}</div> }
+          <dl class="audit-fields">
+            <div><dt i18n="@@ui_19eabc961735">Timestamp</dt><dd>{{ time(job.created) }}</dd></div>
+            <div><dt i18n="@@ui_1370004da76f">Duration</dt><dd>{{ job.duration !== undefined ? number(job.duration / 1000) + ui(' s') : ui('In progress') }}</dd></div>
+            <div><dt i18n="@@ui_68c2cc7f0cea">Model</dt><dd>{{ job.model }}</dd></div>
+            <div><dt i18n="@@ui_aa40cf24f42f">Prompt version</dt><dd>{{ job.promptVersion }}</dd></div>
+            <div><dt i18n="@@ui_d3690a8750c9">RAG mode</dt><dd>{{ ui(job.settings.rag) }} <ng-container i18n="@@ui_29f52e27ce8e">· Top</ng-container> {{ job.settings.topK }} · {{ job.settings.hops }} <ng-container i18n="@@ui_d904f8dea45b">graph hop(s)</ng-container></dd></div>
+            <div><dt i18n="@@ui_545c3da969d6">Token usage</dt><dd>{{ job.usage ? (job.usage.input ?? '—') + ui(' input · ') + (job.usage.output ?? '—') + ui(' output') : ui('Unavailable') }}</dd></div>
+            <div><dt i18n="@@ui_b96a80ac2a9d">Generation parameters</dt><dd><ng-container i18n="@@ui_0a9062a9cb51">Temperature</ng-container> {{ job.parameters.temperature }} <ng-container i18n="@@ui_a5927581e23f">· seed</ng-container> {{ job.parameters.seed }} <ng-container i18n="@@ui_afa0d0bb3c1b">· output limit</ng-container> {{ job.parameters.numPredict }}</dd></div>
+            <div><dt i18n="@@ui_0fd72355c653">Assessment settings</dt><dd>{{ job.settings.brief.documentType?.title ?? ui(job.settings.brief.kind) }} · {{ job.settings.brief.language }} · {{ ui(job.settings.brief.difficulty) }} · {{ job.settings.brief.totalPoints ?? ui('Automatic') }} <ng-container i18n="@@ui_819f41f05837">points</ng-container></dd></div>
+          </dl>
+          <details class="more"><summary i18n="@@ui_80400d397daa">Brief and options</summary><p>{{ job.settings.brief.brief }}</p>
+            <p>{{ job.settings.brief.subject }} · {{ job.settings.brief.grade }} · {{ job.settings.brief.topics }}</p>
+            <p><ng-container i18n="@@ui_1370004da76f">Duration</ng-container> {{ job.settings.brief.duration ?? '—' }} <ng-container i18n="@@ui_1ca2d6751a45">· Question mix</ng-container> {{ job.settings.brief.mix || '—' }}</p></details>
+          <h3 i18n="@@ui_6d3a3f9c5f8b">Selected sources</h3>
+          <ul class="audit-sources">@for (source of job.sources; track source.id) { <li>{{ source.name }} <span class="badge">{{ ui(jobRole(job, source.id)) }}</span></li> }
+            @empty { <li i18n="@@ui_c459b49a2a7e">Brief only</li> }</ul>
+          <h3 i18n="@@ui_e4d96f9d83a7">Facts and source evidence</h3>
+          @for (source of job.evidence; track source.id) {
+            <details class="evidence"><summary><studio-icon name="paperclip" /> {{ source.name }} <ng-container i18n="@@ui_4b10aa3e6014">· passage</ng-container> {{ source.ordinal + 1 }} · {{ source.sourceQuote ? ui('Extracted fact') : ui(source.use) }}</summary>
+              <blockquote>{{ source.text }}</blockquote>
+              @if (source.sourceQuote) { <p><strong i18n="@@ui_f09e096b6d86">Source quote</strong> {{ source.sourceQuote }}</p> }
+              @if (source.path) { <p class="graph-path">{{ source.path.join(' → ') }}</p> }
+            </details>
+          } @empty { <p class="muted" i18n="@@ui_94e7570216b6">No excerpts recorded.</p> }
+          @if (job.warnings.length) {
+            <h3 i18n="@@ui_1430f976c596">Warnings</h3><ul class="audit-sources">@for (warning of job.warnings; track warning) { <li>{{ warning }}</li> }</ul>
+          }
+          @if (revisionFor(job); as version) { <button class="btn small mt-4" (click)="vm.viewVersion(version)"><ng-container i18n="@@ui_7d2549e6e274">Open resulting version</ng-container> {{ version.number }}</button> }
+        </div>
+      }
+    </div>
+  } @empty { <p class="muted" i18n="@@ui_ab2e5dbb81c3">Generation attempts will appear here, including failed attempts.</p> }
+</section>

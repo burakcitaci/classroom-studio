@@ -1,0 +1,52 @@
+@if (vm.doc; as doc) {
+  <section class="panel">
+    <div class="section-head"><div><div class="eyebrow muted" i18n="@@ui_bbcaaa346220">02 / SUPPLY</div><h2 i18n="@@ui_adb65323c1e6">Add your materials</h2><p i18n="@@ui_735415cffadf">Add facts and teaching materials for the draft. Studio extracts facts from old exams used as content and uses format references to guide the structure.</p></div>
+      <span class="step-icon"><studio-icon name="paperclip" /></span></div>
+    <div class="dropzone" [class.drag]="drag" (dragover)="$event.preventDefault(); drag = true" (dragleave)="drag = false" (drop)="drop($event)">
+      <studio-icon name="upload" /><div><strong>{{ vm.uploading ? ui('Uploading…') : ui('Drop files here or browse') }}</strong><p i18n="@@ui_c7d0b945e461">PDF, DOCX or TXT · up to 10 MB per file</p></div>
+      <input #picker class="sr-only" type="file" multiple accept=".pdf,.docx,.txt" i18n-aria-label="@@ui_770abd0bf8ab" aria-label="Upload source files"
+        (change)="vm.upload(picker.files); picker.value = ''">
+      <button class="btn small" (click)="picker.click()" [disabled]="vm.uploading || vm.busy" i18n="@@ui_524932e050e3">Browse files</button>
+    </div>
+    <button class="btn small mt-3" (click)="vm.noteDraft.open = !vm.noteDraft.open"><studio-icon name="plus" /> <ng-container i18n="@@ui_662579651e8d">Paste notes</ng-container></button>
+    @if (vm.noteDraft.open) {
+      <div class="note-form">
+        <label class="field"><ng-container i18n="@@ui_8d1cf99c8e88">Notes title</ng-container><input maxlength="120" [(ngModel)]="vm.noteDraft.title"></label>
+        <label class="field"><ng-container i18n="@@ui_894779e6804f">Teaching notes</ng-container><textarea rows="4" maxlength="9000" [(ngModel)]="vm.noteDraft.text"></textarea></label>
+        <button class="btn small primary" [disabled]="!vm.noteDraft.text.trim()" (click)="vm.addNote()" i18n="@@ui_35d75867a2aa">Add notes</button>
+      </div>
+    }
+    <div class="source-list">
+      @for (source of doc.sources; track source.id) {
+        <div class="source-card">
+          <div class="source-main">
+            <input #includeSource type="checkbox" [checked]="!!vm.role(source.id)" [attr.aria-label]="ui('Use ') + source.name" (change)="vm.selectSource(source, includeSource.checked)">
+            <span class="doc-icon"><studio-icon name="docs" /></span>
+            <div class="grow min-w-0"><strong>{{ source.name }}</strong><small>
+              <span class="badge" [class.green]="source.status === 'ready'" [class.red]="source.status === 'error'">{{ source.status === 'error' ? ui('Needs attention') : source.type === 'note' ? ui('Pasted notes') : source.status === 'ready' ? ui('Indexed') : ui(source.status) }}</span>
+              @if (source.chunks) { {{ source.chunks }} <ng-container i18n="@@ui_193e547f4e80">passages</ng-container> }
+            </small></div>
+          </div>
+          @if (vm.role(source.id); as selectedRole) {
+            <label class="field source-role"><span class="sr-only"><ng-container i18n="@@ui_58d3223584b2">Role for</ng-container> {{ source.name }}</span>
+              <select [ngModel]="selectedRole" (ngModelChange)="vm.changeRole(source.id, $event)">
+                @for (choice of roles; track choice) { <option [value]="choice">{{ ui(roleLabels[choice]) }}</option> }
+              </select>
+            </label>
+          }
+          @if (source.error) {
+            <div class="source-error">{{ ui(source.error) }}
+              @if (source.retryable) { <button class="link-button" (click)="vm.retrySource(source)" i18n="@@ui_a6492b91548c">Retry indexing</button> }
+              @else { <button class="link-button" (click)="vm.removeSource(source)" i18n="@@ui_efda07f4d343">Remove unreadable file</button> }
+            </div>
+          }
+          @if (source.preview) {
+            <button class="link-button source-preview" (click)="openSource = openSource === source.id ? undefined : source.id"
+              [attr.aria-expanded]="openSource === source.id">{{ openSource === source.id ? ui('Hide extracted text') : ui('Preview extracted text') }}</button>
+            @if (openSource === source.id) { <blockquote>{{ source.preview }}</blockquote> }
+          }
+        </div>
+      }
+    </div>
+  </section>
+}

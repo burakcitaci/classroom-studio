@@ -2,26 +2,41 @@
   "name": "web",
   "projectType": "application",
   "sourceRoot": "apps/web/src",
-  "implicitDependencies": ["contracts"],
+  "implicitDependencies": [
+    "contracts"
+  ],
   "targets": {
     "build": {
       "executor": "@nx/angular:application",
-      "outputs": ["{workspaceRoot}/dist/web"],
+      "outputs": [
+        "{workspaceRoot}/dist/web"
+      ],
       "defaultConfiguration": "production",
       "options": {
         "outputPath": "dist/web",
         "browser": "apps/web/src/main.ts",
         "index": "apps/web/src/index.html",
         "tsConfig": "apps/web/tsconfig.json",
-        "styles": ["apps/web/src/styles.css"]
+        "styles": [
+          "apps/web/src/styles.css"
+        ],
+        "polyfills": [
+          "@angular/localize/init"
+        ]
       },
       "configurations": {
-        "production": { "outputHashing": "all" },
-        "development": { "optimization": false, "sourceMap": true, "extractLicenses": false }
+        "production": {
+          "outputHashing": "all"
+        },
+        "development": {
+          "optimization": false,
+          "sourceMap": true,
+          "extractLicenses": false
+        }
       }
     },
     "serve": {
-      "executor": "@nx/angular:dev-server",
+      "executor": "@angular/build:dev-server",
       "continuous": true,
       "options": {
         "buildTarget": "web:build:development",
@@ -30,6 +45,23 @@
         "proxyConfig": "apps/web/proxy.json"
       }
     },
-    "lint": { "command": "eslint apps/web" }
+    "lint": {
+      "command": "eslint apps/web"
+    },
+    "extract-i18n": {
+      "executor": "@angular/build:extract-i18n",
+      "options": {
+        "buildTarget": "web:build",
+        "format": "json",
+        "outputPath": "apps/web/src/locale",
+        "outFile": "messages.extracted.json"
+      }
+    }
+  },
+  "i18n": {
+    "sourceLocale": "en",
+    "locales": {
+      "de": "apps/web/src/locale/messages.de.json"
+    }
   }
 }
