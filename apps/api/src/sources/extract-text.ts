@@ -4,7 +4,7 @@ import { fromBuffer, type Entry, type ZipFile } from 'yauzl';
 export const MAX_UPLOAD = 10 * 1024 * 1024;
 export const MAX_TEXT = 64_000;
 export const MAX_CHUNKS = 80;
-export const MAX_SOURCES = 8;
+export { sourceLimit as MAX_SOURCES } from '../../../../libs/contracts/src/index.js';
 
 export function normalize(text: string) {
   return text.normalize('NFC').replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')

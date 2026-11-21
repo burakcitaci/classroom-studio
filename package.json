@@ -14,6 +14,7 @@
     "lint": "nx run-many -t lint",
     "test": "nx test api",
     "test:browser": "playwright test",
+    "backup": "node --env-file-if-exists=.env scripts/studio-backup.mjs",
     "test:live": "node --env-file-if-exists=.env scripts/smoke-ollama.mjs",
     "i18n:extract": "nx extract-i18n web",
     "i18n:check": "yarn i18n:extract && node scripts/check-i18n.mjs"

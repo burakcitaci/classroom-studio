@@ -48,6 +48,8 @@ export class GenerationService implements OnApplicationBootstrap {
     return (await this.store.jobRows(id)).map(row => decode<Job>(row.audit));
   }
 
+  detail(id: string, jobId: string) { return this.store.job(id, jobId); }
+
   async enqueue(id: string, key: string, edit: number, settings: Generation) {
     const job = await this.store.transaction(async () => {
       const doc = await this.store.document(id, true);
@@ -108,7 +110,7 @@ export class GenerationService implements OnApplicationBootstrap {
     const { existing } = input;
     const settings = { ...input.settings, brief: briefLimits(input.settings.brief) };
     audit.settings = settings;
-    const requested = await this.store.selectedSources(row.doc_id, settings);
+    const requested = await this.store.selectedSources(row.doc_id, settings, true);
     const chunksBySource = new Map(await Promise.all(requested.map(async source => [source.id, await this.store.chunks(source.id)] as const)));
     const chunks = (id: string) => chunksBySource.get(id) ?? [];
     const text = (id: string) => chunks(id).map(chunk => chunk.text).join('\n');

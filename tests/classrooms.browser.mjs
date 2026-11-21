@@ -1,6 +1,4 @@
 import { expect, test } from '@playwright/test';
-import { ensureDocumentTypes } from './type-fixtures.mjs';
-test.beforeEach(async ({ request }) => { await ensureDocumentTypes(request); });
 
 test('plans a class and a lesson, reuses lesson context and finds the document again', async ({ page }, info) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -80,3 +78,41 @@ test('plans a class and a lesson, reuses lesson context and finds the document a
   await page.getByRole('button', { name: 'Reopen class' }).click();
   await expect(page.getByRole('button', { name: 'Add lesson', exact: true })).toBeVisible();
 });
+
+test('class materials and duplicates can be reused from a filed document', async ({ page }) => {
+  const createdClass = await (await page.request.post('/api/classes', {
+    data: { title: 'Reusable geography', subject: 'Geography', grade: '7' },
+  })).json();
+  const lesson = await (await page.request.post('/api/classes/' + createdClass.id + '/lessons', { data: { title: 'Using maps' } })).json();
+  const context = { classId: createdClass.id, lessonId: null };
+  const doc = await (await page.request.post('/api/documents', { data: { kind: 'Worksheet', context } })).json();
+  const other = await (await page.request.post('/api/documents', { data: { kind: 'Worksheet', context } })).json();
+  await page.request.post('/api/documents/' + doc.id + '/notes', { data: { name: 'Reusable map notes', text: 'Map scales show distance.' } });
+
+  await page.goto('/?document=' + doc.id + '&view=brief&lang=en');
+  await page.getByRole('button', { name: 'Save to class materials' }).click();
+  await page.getByText('Class materials', { exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Added', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Archive source' }).click();
+  await expect(page.getByRole('button', { name: 'Archive source' })).toHaveCount(0);
+
+  await page.goto('/?document=' + other.id + '&view=brief&lang=en');
+  await page.getByText('Class materials', { exact: true }).click();
+  await page.getByRole('button', { name: 'Use material' }).click();
+  await expect(page.getByRole('button', { name: 'Added', exact: true })).toBeDisabled();
+  await page.getByLabel('What should Studio create?').fill('A worksheet about map scales.');
+  await page.getByRole('button', { name: 'Save plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Duplicate document' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Duplicate document' });
+  await dialog.getByRole('combobox', { name: 'Lesson', exact: true }).selectOption({ label: 'Using maps' });
+  await dialog.getByRole('button', { name: 'Duplicate document' }).click();
+  await expect(page.getByText('Document duplicated.', { exact: true })).toBeVisible();
+  const duplicateId = new URL(page.url()).searchParams.get('document');
+  expect(duplicateId).not.toBe(other.id);
+  const duplicate = await (await page.request.get('/api/documents/' + duplicateId)).json();
+  expect(duplicate.context.lessonId).toBe(lesson.id);
+  expect(duplicate.sources[0].name).toBe('Reusable map notes');
+});
+
+import { ensureDocumentTypes } from './type-fixtures.mjs';
+test.beforeEach(async ({ request }) => { await ensureDocumentTypes(request); });

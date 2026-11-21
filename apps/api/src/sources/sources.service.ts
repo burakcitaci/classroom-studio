@@ -1,12 +1,12 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, type OnApplicationBootstrap } from '@nestjs/common';
-import { uuid } from '../../../../libs/contracts/src/index.js';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, type OnApplicationBootstrap } from '@nestjs/common';
+import { uuid, type ClassMaterial } from '../../../../libs/contracts/src/index.js';
 import { randomUUID } from 'node:crypto';
 import { extname } from 'node:path';
 import { unlinkSync, writeFileSync } from 'node:fs';
 import { fork } from 'node:child_process';
 import { MAX_SOURCES, MAX_UPLOAD, normalize, splitText } from './extract-text.js';
 import type { VectorIndex } from './retrieval.js';
-import { StudioStore, type SourceRow } from '../persistence/studio-store.js';
+import { encode, now, StudioStore, type SourceRow } from '../persistence/studio-store.js';
 import { ProviderError } from '../providers/provider-request.js';
 import { VECTOR_INDEX } from '../providers/providers.module.js';
 
@@ -132,7 +132,61 @@ export class SourcesService implements OnApplicationBootstrap {
 
   private async checkCapacity(doc: string) {
     const current = await this.store.document(doc, true);
-    if (current.sources.length >= MAX_SOURCES) throw new BadRequestException('This document already has eight sources. Remove an unused source first.');
+    if (current.sources.filter(source => !source.archived).length >= MAX_SOURCES) {
+      throw new BadRequestException('This document already has eight active sources. Archive an unused source first.');
+    }
+  }
+
+  async materials(doc: string): Promise<ClassMaterial[]> {
+    const current = await this.store.document(doc);
+    if (!current.context) return [];
+    return this.store.all<ClassMaterial>(`SELECT m.source_id AS id, s.name, s.type
+      FROM class_materials m JOIN sources s ON m.source_id = s.id
+      WHERE m.class_id = $1 ORDER BY lower(s.name), s.id`, current.context.classId);
+  }
+
+  async shareMaterial(doc: string, id: string) {
+    await this.store.transaction(async () => {
+      const current = await this.store.document(doc, true);
+      const source = (await this.store.sourceRows(doc)).find(item => item.id === id);
+      if (!current.context || !source || source.archived || source.status !== 'ready') {
+        throw new BadRequestException('Choose a ready source in a document filed under a class.');
+      }
+      await this.store.run('INSERT INTO class_materials (class_id, source_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        current.context.classId, source.material_id ?? source.id);
+    });
+    return this.materials(doc);
+  }
+
+  async attachMaterial(doc: string, id: string) {
+    const sourceId = await this.store.transaction(async () => {
+      const current = await this.store.document(doc, true);
+      const source = current.context && uuid.safeParse(id).success && await this.store.one<SourceRow>(
+        `SELECT s.* FROM class_materials m JOIN sources s ON m.source_id = s.id
+         WHERE m.class_id = $1 AND m.source_id = $2`, current.context.classId, id);
+      if (!source) throw new NotFoundException('Material was not found in this class.');
+      const existing = current.sources.find(item => !item.archived && (item.id === id || item.materialId === id));
+      if (existing) return existing.id;
+      await this.checkCapacity(doc);
+      return this.store.copySource(doc, source, false, id);
+    });
+    return this.get(doc, sourceId);
+  }
+
+  async archive(doc: string, id: string, edit: number) {
+    return this.store.transaction(async () => {
+      const current = await this.store.document(doc, true);
+      if (current.edit !== edit) throw new ConflictException('This document changed. Reload it before archiving a source.');
+      const source = current.sources.find(item => item.id === id);
+      if (!source) throw new NotFoundException('Source was not found.');
+      if (source.archived) return current;
+      const sources = current.settings.sources.filter(item => item.id !== id);
+      const settings = { ...current.settings, sources };
+      await this.store.run('UPDATE sources SET archived = true WHERE doc_id = $1 AND id = $2', doc, id);
+      await this.store.run('UPDATE documents SET settings = $1, updated = $2, edit = edit + 1, ready = CASE WHEN $3 THEN 0 ELSE ready END WHERE id = $4',
+        encode(settings), now(), sources.length !== current.settings.sources.length, doc);
+      return this.store.document(doc);
+    });
   }
 
   private async get(doc: string, id: string) {

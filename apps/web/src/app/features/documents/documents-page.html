@@ -8,28 +8,32 @@
     <h2><ng-container i18n="@@ui_5eb6fe96256e">All documents</ng-container> <span class="count">{{ filtered.length }}</span></h2>
     <div class="filters">
       <label class="search"><studio-icon name="search" />
-        <input type="search" i18n-aria-label="@@ui_ef37afa17c14" aria-label="Search documents" i18n-placeholder="@@ui_ef37afa17c14" placeholder="Search documents" [(ngModel)]="search">
+        <input type="search" i18n-aria-label="@@ui_ef37afa17c14" aria-label="Search documents" i18n-placeholder="@@ui_ef37afa17c14" placeholder="Search documents" [(ngModel)]="search" (ngModelChange)="filterChanged()" maxlength="240">
       </label>
       <label class="select-filter"><studio-icon name="book" />
-        <select i18n-aria-label="@@ui_a5a9088b9155" aria-label="Filter by class" [(ngModel)]="classFilter">
+        <select i18n-aria-label="@@ui_a5a9088b9155" aria-label="Filter by class" [(ngModel)]="classFilter" (ngModelChange)="filterChanged()">
           <option value="all" i18n="@@ui_341576bd8bc9">All classes</option>
           <option value="unfiled" i18n="@@ui_c1aca7367373">Unfiled</option>
-          @for (option of classOptions; track option[0]) { <option [value]="option[0]">{{ option[1] }}</option> }
+          @for (option of classOptions(); track option.id) { <option [value]="option.id">{{ option.title }}</option> }
         </select>
       </label>
       <label class="select-filter"><studio-icon name="filter" />
-        <select i18n-aria-label="@@ui_53d21450d63a" aria-label="Filter document type" [(ngModel)]="filter">
+        <select i18n-aria-label="@@ui_53d21450d63a" aria-label="Filter document type" [(ngModel)]="filter" (ngModelChange)="filterChanged()">
           <option value="All types" i18n="@@ui_30c8a0fc9c1a">All types</option>
 
           @for (type of vm.documentTypes.items(); track type.id) { <option [value]="type.id">{{ type.title }}</option> }
         </select>
       </label>
-      <label class="select-filter"><select [attr.aria-label]="copy.status" [(ngModel)]="statusFilter"><option value="all">{{ ui('Status') }}: {{ ui('All documents') }}</option>@for (status of ['Planning', 'Draft', 'Ready']; track status) { <option [value]="status">{{ ui(status) }}</option> }</select></label>
+      <label class="select-filter"><select [attr.aria-label]="copy.status" [(ngModel)]="statusFilter" (ngModelChange)="filterChanged()"><option value="all">{{ ui('Status') }}: {{ ui('All documents') }}</option>@for (status of ['Planning', 'Draft', 'Ready']; track status) { <option [value]="status">{{ ui(status) }}</option> }</select></label>
       @if (hasFilters) { <button class="link-button" type="button" (click)="clearFilters()">{{ ui('Clear filters') }}</button> }
     </div>
   </div>
 
-  @if (filtered.length) {
+  @if (loading()) {
+    <p class="empty-library" role="status" i18n="@@loadingDocuments">Loading documents…</p>
+  } @else if (searchError()) {
+    <div class="message danger" role="alert">{{ searchError() }} <button type="button" class="btn small" (click)="loadPage(1)">{{ ui('Retry') }}</button></div>
+  } @else if (filtered.length) {
     <table>
       <thead><tr><th scope="col" i18n="@@ui_e214b8a29923">Document</th><th scope="col" i18n="@@ui_3deb74565196">Type</th><th scope="col" i18n="@@ui_bae7d5be7082">Status</th><th scope="col" i18n="@@ui_f2f8570ddd7b">Updated</th></tr></thead>
       <tbody>
@@ -49,13 +53,20 @@
         }
       </tbody>
     </table>
+    @if (pageNumber > 1 || page().hasMore) {
+      <nav class="button-row justify-end p-3" aria-label="Document pages" i18n-aria-label="@@documentPages">
+        <button type="button" class="btn small" [disabled]="pageNumber === 1" (click)="loadPage(pageNumber - 1)" i18n="@@previousDocumentsPage">Previous page</button>
+        <span i18n="@@documentPageNumber">Page {{ pageNumber }}</span>
+        <button type="button" class="btn small" [disabled]="!page().hasMore" (click)="loadPage(pageNumber + 1)" i18n="@@nextDocumentsPage">Next page</button>
+      </nav>
+    }
   } @else {
     <div class="empty-library">
-      <span class="empty-icon"><studio-icon [name]="vm.list.length ? 'search' : 'docs'" /></span>
-      <h3>{{ vm.list.length ? ui('No matching documents') : ui('No documents yet') }}</h3>
-      <p>{{ vm.list.length ? ui('Try a different search or clear the filters.') : ui('Create a document or try the sample exam to see how Studio works.') }}</p>
-      @if (!vm.list.length) { <button class="btn" (click)="vm.create(createKind, true)" [disabled]="vm.busy"><studio-icon name="spark" />{{ ui('Try a sample exam') }}</button> }
-      @if (vm.list.length) { <button type="button" class="btn small" (click)="clearFilters()" i18n="@@ui_412226715c56">Clear filters</button> }
+      <span class="empty-icon"><studio-icon [name]="hasFilters ? 'search' : 'docs'" /></span>
+      <h3>{{ hasFilters ? ui('No matching documents') : ui('No documents yet') }}</h3>
+      <p>{{ hasFilters ? ui('Try a different search or clear the filters.') : ui('Create a document or try the sample exam to see how Studio works.') }}</p>
+      @if (!hasFilters) { <button class="btn" (click)="vm.create(createKind, true)" [disabled]="vm.busy"><studio-icon name="spark" />{{ ui('Try a sample exam') }}</button> }
+      @if (hasFilters) { <button type="button" class="btn small" (click)="clearFilters()" i18n="@@ui_412226715c56">Clear filters</button> }
     </div>
   }
 </section>

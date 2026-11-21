@@ -15,6 +15,8 @@ yarn.cmd start
 
 Open [Classroom Studio](http://127.0.0.1:4300). For Angular live reload, run `yarn.cmd dev` and open [the dev server](http://127.0.0.1:4200). Restart the dev command after changes to the API. On macOS and Linux, use `yarn` in place of `yarn.cmd`.
 
+The API runs in the foreground and exits if its launching process disappears, including when a Windows terminal or runner is forcibly closed. This prevents an orphaned API from keeping port 4300 occupied on the next start. An `EADDRINUSE` startup error means another process still owns the configured port; stop that instance before starting another one.
+
 The workspace pins Nx and @nx/angular 24.0.5, Angular 22.2.5 with Angular Build 22.2.6, NestJS 12.4.2, Tailwind 4.3.5, TypeScript 6.0.3 and Yarn 4.18.1. TypeScript 6.0 is the newest line supported by Angular 22. Nx runs the Angular build and dev server through @nx/angular, and builds the NestJS API with tsc. The @nx/nest 24.0.5 generator supports NestJS 10 and 11. The API uses NestJS 12 directly. [Nx compatibility](https://nx.dev/docs/kb/angular-nx-version-matrix), [Angular compatibility](https://angular.dev/reference/versions), [Node LTS release](https://nodejs.org/en/blog/release/v26.13.0).
 
 ## PostgreSQL
@@ -24,6 +26,18 @@ Docker Compose runs PostgreSQL 18 at 127.0.0.1:5433 and stores the database in t
 PostgreSQL is the source of truth for classes, lessons, documents, source text, revisions and generation jobs. The API applies ordered SQL migrations from apps/api/migrations at startup. Original uploaded files are stored in .studio/uploads; Qdrant holds a rebuildable search index derived from PostgreSQL.
 
 Start PostgreSQL before running the API or test suites. Tests create and remove their own PostgreSQL schemas. Docker Compose shutdown preserves the database volume.
+
+## Back up or move a workspace
+
+Build Studio, then run the backup command with the API stopped and PostgreSQL running. It writes a portable directory with a manifest and original uploads. Choose a directory that does not exist yet.
+
+```powershell
+yarn.cmd backup create ./classroom-backup
+yarn.cmd backup inspect ./classroom-backup
+yarn.cmd backup restore ./classroom-backup classroom_restored ./.studio-restored
+```
+
+Inspect verifies the original uploads and shows the record counts before import. Restore requires a new PostgreSQL schema and a new data directory, and checks that the build uses the backup's migrations. Set `STUDIO_DATABASE_SCHEMA=classroom_restored` and `STUDIO_DATA=./.studio-restored` in .env to open the restored workspace. Ollama retrieval rebuilds missing Qdrant vectors from the restored chunks.
 
 ## Interface language
 
@@ -42,12 +56,12 @@ The **Documents** library shows work across classes and includes an Unfiled filt
 ## Try an exam
 
 1. Choose **Create document** and pick a type, or use **Try a sample exam** to load the bundled biology brief and two sources.
-2. In **Plan**, choose **Edit plan**, enter a brief and optionally set the language, duration, question mix and total points under **More options**. Choose **Save plan** to persist the changes or **Cancel** to restore the previous plan. New empty plans start in edit mode. Save or cancel plan edits before generating or leaving the view. The interface, generated assessments and export labels support English and German. Choose the interface language in the top bar; the document output language is a separate setting.
-3. Upload PDF, DOCX or UTF-8 TXT files, or paste notes. Select the sources to use and label each one by purpose. Expand **Preview extracted text** to inspect what Studio read. Scanned PDFs require OCR before upload.
+2. In **Plan**, choose **Edit plan**, enter a brief and optionally set the language, duration, question mix and total points under **More options**. Choose **Save plan** to persist the changes, **Save plan and generate** to start drafting, or **Cancel** to restore the previous plan. New empty plans start in edit mode. Save or cancel plan edits before generating or leaving the view. The interface, generated assessments and export labels support English and German. Choose the interface language in the top bar; the document output language is a separate setting.
+3. Upload PDF, DOCX or UTF-8 TXT files, or paste notes. Select the sources to use and label each one by purpose. Expand **Preview extracted text** to inspect what Studio read. Scanned PDFs require OCR before upload. Archive an unused source to free a slot while preserving its historical excerpts. In a filed document, **Save to class materials** makes a ready source reusable in other documents in the same class.
 4. Choose **How should AI use your materials?** Format samples guide structure in Ollama mode. Off uses the brief and selected notes. Basic searches selected content uploads for passages with similar meaning. Advanced combines that ranking with keyword retrieval and removes near duplicates. Graph also follows nearby passages and shared terms. Indexed content uploads default to Basic. Pasted notes are direct context.
 5. Generate, then open **Editor**. Review warnings and supporting excerpts, edit prompts, points, answers and scoring, and reorder questions. For a replacement, choose **Regenerate question**, then preview and apply it. **Save version** creates an immutable snapshot. **Preview**, immediately before **Mark as ready**, saves edits and opens the student print view without creating a version. **Mark as ready** records a reviewed version.
-6. Use **History** to preview, export or restore older versions. **Compare** shows stable-question changes and source settings side by side. **Generation audit** includes failures, timing, configured model, prompt version, parameters, usage when available and the actual excerpts used.
-7. With Ollama and retrieval enabled, a past exam selected as content supplies extracted facts with source quotes. The drafting model receives those facts and format hints, and the completed draft is checked for copied questions. Find **Organize** and **Export** directly after **Generation audit** in the workspace navigation. Use **Export** for student or teacher Word files and A4 print views. The print view has a **Print / save as PDF** button. Keep teacher-only information in the designated answer, scoring and private-note fields.
+6. Use **History** to preview, export, duplicate or restore older versions. Restore checkpoints the outgoing draft and offers Undo. Use **Duplicate document** to make an editable copy in another class or lesson. **Compare** shows stable-question changes and source settings side by side. **Generation audit** includes failures, timing, configured model, prompt version, parameters, usage when available and the actual excerpts used.
+7. With Ollama and retrieval enabled, a past exam selected as content supplies extracted facts with source quotes. The drafting model receives those facts and format hints, and the completed draft is checked for copied questions. Find **Organize** and **Export** in the document header. The export dialog identifies the working draft or saved version and highlights the default audience. Use **Export** for student or teacher Word files and A4 print views. The print view has a **Print / save as PDF** button. Keep teacher-only information in the designated answer, scoring and private-note fields.
 
 The synthetic [format sample](fixtures/sample-exam.txt) and [teaching materials](fixtures/teaching-notes.txt) are available for manual upload. Demo mode uses a small bilingual question bank for ecosystems and general templates for other topics. Its scoring guidance and source matching are illustrative.
 

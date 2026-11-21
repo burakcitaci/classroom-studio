@@ -1,7 +1,7 @@
 <div class="work-grid">
   <div class="stack">
     <section class="panel" aria-labelledby="plan-heading">
-      <div class="section-head"><div><div class="eyebrow muted" i18n="@@ui_dccd42814de2">01 / PLAN</div><h2 id="plan-heading" i18n="@@ui_7fa45888094f">Write a short brief</h2><p i18n="@@ui_a1ac0961b15d">Describe what you want your class to demonstrate.</p></div>
+      <div class="section-head"><div><h2 id="plan-heading" i18n="@@ui_7fa45888094f">Write a short brief</h2><p i18n="@@ui_a1ac0961b15d">Describe what you want your class to demonstrate.</p></div>
         @if (!vm.planEditing) {
           <button type="button" class="btn small" (click)="vm.editPlan()" [disabled]="vm.busy"><studio-icon name="edit" /><ng-container i18n="@@editPlan">Edit plan</ng-container></button>
         } @else { <span class="badge" i18n="@@editingPlan">Editing plan</span> }
@@ -37,7 +37,8 @@
       @if (vm.planEditing) {
         <p class="form-help mt-3" i18n="@@planSaveHelp">Changes take effect after you save the plan.</p>
         <div class="button-row mt-3">
-          <button type="button" class="btn primary small" (click)="vm.savePlan()" [disabled]="vm.busy || !vm.settings.brief.brief.trim()"><studio-icon name="check" /><ng-container i18n="@@savePlan">Save plan</ng-container></button>
+          <button type="button" class="btn small" (click)="vm.savePlan()" [disabled]="vm.busy || !vm.settings.brief.brief.trim()"><studio-icon name="check" /><ng-container i18n="@@savePlan">Save plan</ng-container></button>
+          <button type="button" class="btn primary small plan-generate-action" (click)="vm.savePlanAndGenerate()" [disabled]="vm.busy || !vm.settings.brief.brief.trim() || !vm.provider || !!vm.active || (vm.provider === 'ollama' && !vm.generationModel)" i18n="@@savePlanAndGenerate">Save plan and generate</button>
           <button type="button" class="btn small" (click)="vm.cancelPlan()" [disabled]="vm.busy" i18n="@@ui_77dfd2135f4d">Cancel</button>
           @if (vm.savingPlan) { <span role="status" i18n="@@savingPlan">Saving plan…</span> }
         </div>
@@ -47,8 +48,9 @@
   </div>
   <div class="stack">
     <section class="panel retrieval">
-      <div class="section-head"><div><div class="eyebrow muted" i18n="@@ui_530a84f55664">03 / GUIDE</div><h2 i18n="@@ui_b8ad5d5f97b7">How should AI use your materials?</h2>
+      <div class="section-head"><div><h2 i18n="@@ui_b8ad5d5f97b7">How should AI use your materials?</h2>
         <p>{{ ui('Selected sources:') }} {{ vm.selectedSourceCount }}</p></div><span class="step-icon"><studio-icon name="spark" /></span></div>
+      <details class="more"><summary i18n="@@advancedSettings">Advanced settings</summary>
       <fieldset class="modes"><legend class="sr-only" i18n="@@ui_b8ad5d5f97b7">How should AI use your materials?</legend>
         @for (mode of modes; track mode) {
           <label class="mode-choice" [class.selected]="vm.settings.rag === mode">
@@ -57,12 +59,13 @@
           </label>
         }
       </fieldset>
-      <details class="more"><summary><ng-container i18n="@@ui_86c0a35ec883">More options</ng-container> <span class="faint" i18n="@@ui_83af4188a926">· Retrieval</span></summary>
+      <div class="mt-3">
         <div class="field-grid">
           <label class="field"><ng-container i18n="@@ui_0f683ef683ec">Excerpt limit</ng-container><input type="number" min="1" max="8" [(ngModel)]="vm.settings.topK" (ngModelChange)="vm.change()"></label>
           <label class="field"><ng-container i18n="@@ui_7531762ceac3">Graph hops</ng-container><input type="number" min="1" max="2" [(ngModel)]="vm.settings.hops" (ngModelChange)="vm.change()"></label>
         </div>
         <button class="link-button mt-3" (click)="vm.useAutomaticMode()" i18n="@@ui_ededd8c23cdd">Use automatic mode</button>
+      </div>
       </details>
       <div class="retrieval-tip"><studio-icon name="leaf" /> <span i18n="@@ui_536bd7dceb30">Format samples guide layout and difficulty. Content sources support new questions with evidence.</span></div>
     </section>

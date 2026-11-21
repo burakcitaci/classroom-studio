@@ -4,7 +4,7 @@ import { Notifications } from '../../core/notifications';
 import { interfaceLocale } from '../../core/i18n/locale';
 import { ui } from '../../core/i18n/ui-messages';
 import { Injectable, inject, signal, type OnDestroy } from '@angular/core';
-import { initialSettings, isActive, briefSchema, kinds, type DocumentType, type Assessment, type Brief, type DocumentContextInput, type DocumentSummary, type Generation, type Job,
+import { initialSettings, isActive, briefSchema, kinds, sourceLimit, summarizeJob, type ClassMaterial, type DocumentType, type Assessment, type Brief, type DocumentActivity, type DocumentContextInput, type Generation, type Job, type JobSummary,
   type Question, type RagMode, type Revision, type Settings, type Source, type SourceRole, type StudioDocument } from '../../../../../../libs/contracts/src';
 import { ApiError, StudioApi } from '../../core/studio-api';
 import { workspaceTabs, type Tab } from './workspace-tabs';
@@ -40,7 +40,6 @@ export class WorkspaceStore implements OnDestroy {
   ollamaModels: string[] = [];
   loadingModels = false;
   modelListError = '';
-  list: DocumentSummary[] = [];
   section: 'classes' | 'documents' | 'types' = 'classes';
   classId?: string;
   lessonId?: string;
@@ -49,7 +48,7 @@ export class WorkspaceStore implements OnDestroy {
   settings: Settings = initialSettings();
   draft: Assessment | null = null;
   revisions: Revision[] = [];
-  jobs: Job[] = [];
+  jobs: JobSummary[] = [];
   loading = true;
   busy = false;
   uploading = false;
@@ -79,6 +78,11 @@ export class WorkspaceStore implements OnDestroy {
     if (value) this.notifications.success(value);
   }
   showExports = false;
+  exportVersion?: Revision;
+  get exportCopies(): Copy[] {
+    const settings = this.exportVersion?.settings ?? this.settings;
+    return settings.brief.documentType?.audience === 'teacher' ? ['teacher', 'student'] : ['student', 'teacher'];
+  }
   preview?: Revision;
   compareLeft = '';
   compareRight = 'working';
@@ -88,6 +92,7 @@ export class WorkspaceStore implements OnDestroy {
   private poller?: ReturnType<typeof setInterval>;
   private savePromise?: Promise<boolean>;
   private refreshing = false;
+  private lastRefresh = 0;
   private generationEpoch = 0;
   private navigation = 0;
   private readonly pop = () => void this.loadLocation();
@@ -133,9 +138,9 @@ export class WorkspaceStore implements OnDestroy {
     } else this.notifications.dismiss('generation-progress');
   }
 
-  toggleExports() {
+  toggleExports(version?: Revision) {
     this.showExports = !this.showExports;
-    this.preview = undefined;
+    this.exportVersion = this.showExports ? version : undefined;
     this.publish();
   }
 
@@ -149,7 +154,10 @@ export class WorkspaceStore implements OnDestroy {
       if (status.provider === 'ollama') void this.loadModels();
       this.publish();
     }).catch(() => this.fail($localize`:@@ui_5047a9efcde3:The local API could not be reached. Check that Classroom Studio is running.`));
-    this.poller = setInterval(() => { void this.refresh(); }, 1050);
+    this.poller = setInterval(() => {
+      const active = this.active || this.activeSources.some(source => source.status === 'extracting' || source.status === 'indexing');
+      if (active || Date.now() - this.lastRefresh >= 3000) void this.refresh();
+    }, 1050);
   }
 
   async loadModels() {
@@ -283,23 +291,20 @@ export class WorkspaceStore implements OnDestroy {
     this.publish();
     try {
       if (id) {
-        const [doc, versions, jobs] = await Promise.all([
-          this.api.request<StudioDocument>('/documents/' + id), this.api.request<Revision[]>('/documents/' + id + '/versions'), this.api.request<Job[]>('/documents/' + id + '/jobs'),
+        const [doc, versions, activity] = await Promise.all([
+          this.api.request<StudioDocument>('/documents/' + id), this.api.request<Revision[]>('/documents/' + id + '/versions'), this.api.request<DocumentActivity>('/documents/' + id + '/activity'),
         ]);
         if (token !== this.navigation) return;
         this.apply(doc);
         this.revisions = versions;
-        this.jobs = jobs;
+        this.jobs = activity.jobs;
         this.tab = tab;
         if (tab === 'brief' && !doc.draft && !doc.settings.brief.brief.trim()) this.planOriginal = structuredClone(this.settings.brief);
         this.compareLeft = versions[0]?.id ?? '';
         this.compareRight = 'working';
         this.syncMode();
       } else {
-        const list = await this.api.request<DocumentSummary[]>('/documents');
-        if (token !== this.navigation) return;
         this.doc = undefined;
-        this.list = list;
       }
       if (writeUrl) this.url(id, tab);
     } catch (error) {
@@ -336,8 +341,15 @@ export class WorkspaceStore implements OnDestroy {
   }
 
   get active() { return this.jobs.find(isActive); }
-  get recent(): Job | undefined { return this.jobs[0]; }
+  get recent(): JobSummary | undefined { return this.jobs[0]; }
 
+  loadJob(id: string) {
+    return this.api.request<Job>('/documents/' + this.doc?.id + '/jobs/' + id);
+  }
+
+  readonly sourceLimit = sourceLimit;
+  get activeSources() { return this.doc?.sources.filter(source => !source.archived) ?? []; }
+  get activeSourceCount() { return this.activeSources.length; }
   get selectedSourceCount() { return this.settings.sources.length; }
 
   compareDraft() {
@@ -383,6 +395,24 @@ export class WorkspaceStore implements OnDestroy {
       this.fail(error);
       return false;
     } finally { this.busy = false; this.publish(); }
+  }
+
+  async duplicateDocument(context: DocumentContextInput, version?: Revision) {
+    const id = this.doc?.id;
+    if (!id || this.busy) return false;
+    this.busy = true;
+    this.error = '';
+    this.publish();
+    try {
+      if (!await this.flush() || this.doc?.id !== id) return false;
+      const copy = await this.api.request<StudioDocument>('/documents/' + id + '/duplicate', {
+        method: 'POST', body: { edit: this.doc.edit, context, version: version?.id },
+      });
+      if (this.doc?.id === id) await this.open(copy.id, copy.draft ? 'editor' : 'brief', true);
+      this.notice = $localize`:@@documentDuplicated:Document duplicated.`;
+      return true;
+    } catch (error) { this.fail(error); return false; }
+    finally { this.busy = false; this.publish(); }
   }
 
   async fileDocument(context: DocumentContextInput): Promise<boolean> {
@@ -521,17 +551,29 @@ export class WorkspaceStore implements OnDestroy {
     if (!current || this.refreshing || this.loading) return;
     const generationEpoch = this.generationEpoch;
     this.refreshing = true;
+    this.lastRefresh = Date.now();
     try {
-      const [doc, jobs] = await Promise.all([this.api.request<StudioDocument>('/documents/' + current.id), this.api.request<Job[]>('/documents/' + current.id + '/jobs')]);
+      const path = '/documents/' + current.id;
+      const activity = await this.api.request<DocumentActivity>(path + '/activity');
+      const differs = activity.sources.length !== this.doc?.sources.length || activity.sources.some((source, index) => {
+        const previous = this.doc?.sources[index];
+        return source.id !== previous?.id || source.status !== previous.status || source.archived !== previous.archived ||
+          source.retryable !== previous.retryable || source.error !== previous.error;
+      });
+      const newerDraft = !this.dirty && !this.savePromise && !this.planEditing && activity.edit > (this.doc?.edit ?? -1);
+      const doc = differs || newerDraft ? await this.api.request<StudioDocument>(path) : undefined;
+      const { jobs } = activity;
       // A poll started before the generation response may omit the new job.
       if (this.doc?.id !== current.id || generationEpoch !== this.generationEpoch) return;
       const latestSuccess = jobs.find(job => job.versionId);
       const priorSuccess = this.jobs.find(job => job.versionId);
-      const becameReady = doc.sources.some(item => item.status === 'ready' && !this.doc?.sources.some(old => old.id === item.id && old.status === 'ready'));
       this.jobs = jobs;
-      this.doc.sources = doc.sources;
-      if (!this.dirty && !this.savePromise && !this.planEditing && doc.edit > this.doc.edit) this.apply(doc);
-      if (becameReady) this.syncMode();
+      if (doc && doc.edit >= this.doc.edit) {
+        const becameReady = doc.sources.some(item => item.status === 'ready' && !this.doc?.sources.some(old => old.id === item.id && old.status === 'ready'));
+        this.doc.sources = doc.sources;
+        if (!this.dirty && !this.savePromise && !this.planEditing && doc.edit > this.doc.edit) this.apply(doc);
+        if (becameReady) this.syncMode();
+      }
       if (latestSuccess?.id !== priorSuccess?.id || (latestSuccess && !this.revisions.some(row => row.id === latestSuccess.versionId))) {
         await this.loadVersions(current.id);
         if (!this.compareLeft) this.compareLeft = this.revisions[0]?.id ?? '';
@@ -600,6 +642,10 @@ export class WorkspaceStore implements OnDestroy {
 
   async upload(files: FileList | null) {
     if (!this.doc || !files?.length || this.uploading) return;
+    if (files.length > this.sourceLimit - this.activeSourceCount) {
+      this.fail($localize`:@@sourceSlotsExceeded:Choose fewer files or archive an unused source first.`);
+      return;
+    }
     const id = this.doc.id;
     this.uploading = true;
     this.error = '';
@@ -649,6 +695,47 @@ export class WorkspaceStore implements OnDestroy {
     } catch (error) { this.fail(error); }
   }
 
+  async savePlanAndGenerate() {
+    if (await this.savePlan()) await this.generate();
+  }
+
+  private materialsPath() { return '/documents/' + this.doc?.id + '/materials'; }
+
+  async loadMaterials() {
+    if (!this.doc?.context) return [];
+    return this.api.request<ClassMaterial[]>(this.materialsPath());
+  }
+
+  async shareMaterial(source: Source) {
+    if (!this.doc?.context) return [];
+    return this.api.request<ClassMaterial[]>('/documents/' + this.doc.id + '/sources/' + source.id + '/share', { method: 'POST' });
+  }
+
+  async attachMaterial(material: string) {
+    const id = this.doc?.id;
+    if (!id) return;
+    const source = await this.api.request<Source>(this.materialsPath() + '/' + material, { method: 'POST' });
+    if (this.doc?.id === id) this.addSelection(source, 'content');
+  }
+
+  async archiveSource(source: Source) {
+    const id = this.doc?.id;
+    if (!id || this.busy || this.uploading) return;
+    this.busy = true;
+    this.publish();
+    try {
+      if ((!this.planEditing && !await this.flush()) || this.doc?.id !== id) return;
+      const next = await this.api.request<StudioDocument>('/documents/' + id + '/sources/' + source.id + '/archive', {
+        method: 'POST', body: { edit: this.doc.edit },
+      });
+      if (this.doc?.id !== id) return;
+      this.doc = next;
+      this.settings.sources = this.settings.sources.filter(item => item.id !== source.id);
+      this.syncMode();
+    } catch (error) { this.fail(error); }
+    finally { this.busy = false; this.publish(); }
+  }
+
   async generate(question?: Question) {
     if (!this.doc || this.active || this.busy || !this.provider) return;
     if (this.provider === 'ollama' && !this.generationModel) { this.fail($localize`:@@ui_b60ace3c7fbc:Choose an Ollama model before generating.`); return; }
@@ -677,7 +764,7 @@ export class WorkspaceStore implements OnDestroy {
         // stage and its notification instead of replaying the queued snapshot.
         if (!this.jobs.some(item => item.id === job.id)) {
           this.trackedJob = { id: job.id };
-          this.jobs = [job, ...this.jobs];
+          this.jobs = [summarizeJob(job), ...this.jobs];
         }
         this.currentNotice = question ? $localize`:@@ui_aac93893377e:Question regeneration queued. Review the result before replacing.` : $localize`:@@ui_9c31fd23e911:Generation queued. You can keep working while it runs.`;
       } catch (error) {
@@ -748,7 +835,13 @@ export class WorkspaceStore implements OnDestroy {
       this.syncMode();
       await this.loadVersions(id);
       this.selectTab('editor');
-      this.notice = $localize`:@@ui_03283ea975df:Version ` + version.number + $localize`:@@ui_958dbd450c0b: restored as a new working revision.`;
+      this.notifications.success($localize`:@@ui_03283ea975df:Version ` + version.number + $localize`:@@ui_958dbd450c0b: restored as a new working revision.`, {
+        id: 'restore', duration: 12000,
+        action: doc.restoreCheckpoint ? { label: $localize`:@@undoRestore:Undo restore`, onClick: () => {
+          const checkpoint = this.revisions.find(item => item.id === doc.restoreCheckpoint);
+          if (this.doc?.id === id && checkpoint) void this.restore(checkpoint);
+        } } : undefined,
+      });
     } catch (error) { this.fail(error); }
     finally { this.busy = false; this.publish(); }
   }

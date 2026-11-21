@@ -15,6 +15,7 @@ test('complete assessment workflow survives reload and keeps teacher content out
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('dialog').getByRole('button', { name: 'Create document' }).click();
   await page.getByLabel('What should Studio create?').fill('A biology exam on ecosystems, food chains, fungi and pollination.');
+  await page.getByText('Advanced settings', { exact: true }).click();
   await page.getByRole('radio', { name: /Basic/ }).check();
   await page.getByRole('button', { name: 'Save plan', exact: true }).click();
   await page.getByRole('button', { name: 'Generate draft' }).click();
@@ -44,6 +45,7 @@ test('complete assessment workflow survives reload and keeps teacher content out
   await expect(page.getByLabel('Teaching notes', { exact: true })).toHaveValue('Mention energy transfer, producers, and the role of fungi.');
   await page.getByRole('button', { name: 'Add notes' }).click();
   await expect(page.getByText('Pasted notes', { exact: true })).toBeVisible();
+  await page.getByText('Advanced settings', { exact: true }).click();
   await page.getByRole('radio', { name: /Graph/ }).check();
   await page.getByRole('button', { name: 'Generate draft' }).click();
   await expect(page.locator('[data-sonner-toast]').getByText('Progress is saved.', { exact: false })).toBeVisible();
@@ -154,6 +156,7 @@ test('mobile library and example workspace fit the viewport and automatically se
   await page.getByLabel('More options', { exact: true }).click();
   await page.getByRole('button', { name: 'Try a sample exam' }).filter({ visible: true }).click();
   await expect(page.getByText('Indexed', { exact: true })).toHaveCount(2);
+  await page.getByText('Advanced settings', { exact: true }).click();
   await expect(page.getByRole('radio', { name: /Basic/ })).toBeChecked();
   await expect(page.getByLabel('Role for Sample exam.txt')).toHaveValue('format');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);

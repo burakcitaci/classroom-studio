@@ -625,6 +625,7 @@ studio-source-materials {
   .source-main small { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; color: var(--muted); margin-top: 3px; }
   .source-card .doc-icon { width: 28px; height: 28px; border-radius: 6px; }
   .source-role select { padding: 6px 7px; font-size: 12px; }
+  .source-actions { grid-column: 1 / -1; gap: 12px; }
   .source-error { grid-column: 1 / -1; color: #803b31; font-size: 12px; }
   .source-preview { grid-column: 1 / -1; justify-self: start; }
 
@@ -703,6 +704,7 @@ studio-toaster [data-sonner-toast]:not(:has(.toast-action)) .toast-cancel { grid
 @media (max-width: 460px) { .workspace-actions { border-left: 0; padding-left: 0; margin-left: 0; } }
 
 studio-assessment-brief .plan-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+studio-assessment-brief .plan-generate-action { white-space: normal; text-align: center; }
 studio-assessment-brief .plan-fields:disabled :is(input, select, textarea) { opacity: 1; background: var(--surface-muted); color: var(--muted); cursor: default; }
 
 .type-list { display: grid; gap: .75rem; margin-top: 1rem; }
@@ -876,14 +878,6 @@ studio-document-workspace {
   .document-header h1 { font-size: 32px; grid-column: 1; }
   .metadata { grid-column: 1; margin: 0; font-size: 13px; gap: 12px; }
   .document-header-actions { grid-column: 2; grid-row: 1 / 3; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
-  .progress-stepper { display: flex; align-items: center; gap: 12px; padding: 20px 24px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 24px; }
-  .progress-stepper button { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); white-space: nowrap; min-height: 32px; }
-  .step-number { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 50%; font-size: 12px; }
-  .progress-stepper button.current { color: var(--primary); font-weight: 600; }
-  .progress-stepper button.current .step-number { color: white; background: var(--primary); border-color: var(--primary); }
-  .progress-stepper button.complete .step-number { border-color: var(--accent-border); background: var(--primary-soft); color: var(--primary); }
-  .progress-stepper button.current.complete .step-number { background: var(--primary); color: white; }
-  .step-line { height: 1px; flex: 1; background: var(--border); }
   .workspace-navigation { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
   .tabs { display: flex; overflow: visible; border: 0; border-radius: 0; padding: 0; margin: 0; gap: 24px; }
   .tabs button { padding: 12px 0; min-height: 48px; border-radius: 0; border-bottom: 2px solid transparent; font-size: 14px; color: var(--muted); display: inline-flex; gap: 8px; align-items: center; }
@@ -1027,9 +1021,6 @@ studio-generation-audit .audit-card:has(.badge.red) { border-color: oklch(.83 .0
     .document-header { gap: 16px; margin-bottom: 24px; }
     .document-header h1 { font-size: 28px; }
     .metadata { font-size: 12px; gap: 8px; }
-    .progress-stepper { gap: 4px; padding: 12px 8px; }
-    .progress-stepper button { flex-direction: column; font-size: 12px; gap: 4px; }
-    .step-line { margin-bottom: 20px; }
     .workspace-navigation { gap: 8px; align-items: flex-end; }
     .tabs { gap: 16px; }
     .tabs button { gap: 4px; font-size: 13px; min-height: 48px; }

@@ -1,10 +1,10 @@
 import { interfaceLocale } from '../../core/i18n/locale';
 import { EmptyState, designCopy } from '../../shared/studio-ui';
 import { ui } from '../../core/i18n/ui-messages';
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { WorkspaceStore } from '../workspace/workspace-store';
 import { Icon } from '../../shared/icon/icon';
-import { roleLabels, type Job } from '../../../../../../libs/contracts/src';
+import { roleLabels, type Job, type JobSummary } from '../../../../../../libs/contracts/src';
 import { formatTimestamp } from '../../shared/format-timestamp';
 
 @Component({
@@ -19,7 +19,23 @@ export class GenerationAudit {
   private readonly workspace = inject(WorkspaceStore);
 
   protected get vm() { return this.workspace.view; }
-  protected currentAudit?: string;
+  protected readonly currentAudit = signal('');
+  protected readonly detail = signal<Job | undefined>(undefined);
+  protected readonly error = signal('');
+
+  protected async toggleAudit(summary: JobSummary) {
+    const id = this.currentAudit() === summary.id ? '' : summary.id;
+    this.currentAudit.set(id);
+    this.detail.set(undefined);
+    this.error.set('');
+    if (!id) return;
+    try {
+      const job = await this.vm.loadJob(id);
+      if (this.currentAudit() === id) this.detail.set(job);
+    } catch (error) {
+      if (this.currentAudit() === id) this.error.set(error instanceof Error ? error.message : String(error));
+    }
+  }
   protected readonly time = formatTimestamp;
   protected number(value: number) { return new Intl.NumberFormat(interfaceLocale, { maximumFractionDigits: 2 }).format(value); }
   protected revisionFor(job: Job) { return this.vm.revisions.find(item => item.id === job.versionId); }

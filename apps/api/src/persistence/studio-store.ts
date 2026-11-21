@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { Pool, types, type PoolClient } from 'pg';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { uuid, documentKind, settingsSchema, type Assessment, type DocumentContextInput, type DocumentSummary, type Job, type Revision, type Settings, type Source, type StudioDocument, type Working } from '../../../../libs/contracts/src/index.js';
+import { uuid, documentKind, readinessIssues, settingsSchema, type Assessment, type DocumentActivity, type DocumentContextInput, type DocumentPage, type DocumentSummary, type Job, type JobSummary, type Revision, type Settings, type Source, type StudioDocument, type Working } from '../../../../libs/contracts/src/index.js';
 
 export const now = () => new Date().toISOString();
 export const encode = (value: unknown) => JSON.stringify(value);
@@ -14,6 +14,9 @@ export interface Chunk { id: string; source_id: string; ordinal: number; text: s
 export interface SourceRow {
   id: string; doc_id: string; name: string; type: Source['type']; file_ext: string | null;
   status: Source['status']; preview: string; error: string | null; retryable: number; chunks: number;
+  archived: boolean;
+  original_id: string | null;
+  material_id: string | null;
 }
 export interface JobRow {
   id: string; doc_id: string; input: string; base_edit: number; created: string;
@@ -132,15 +135,60 @@ export class StudioStore {
     const rows = classId
       ? await this.all<DocumentRow & ContextRow>(documentQuery + ' WHERE d.class_id = $1' + order, classId)
       : await this.all<DocumentRow & ContextRow>(documentQuery + order);
-    return rows.map(row => {
-      const { brief } = decode<Settings>(row.settings);
-      const draft = row.draft ? decode<Assessment>(row.draft) : null;
-      const context = contextView(row);
-      const plannedTitle = brief.topics ? brief.topics + ' · ' + documentKind(brief) : brief.subject || brief.brief.slice(0, 75);
-      return { id: row.id, updated: row.updated, context, title: draft?.title ?? (plannedTitle || 'Untitled ' + documentKind(brief).toLowerCase()),
-        kind: brief.kind, documentType: brief.documentType, subject: brief.subject, grade: brief.grade, language: brief.language,
-        status: row.ready ? 'Ready' : draft ? 'Draft' : 'Planning' };
-    });
+    return rows.map(row => this.summary(row));
+  }
+
+  async searchDocuments(search: { query: string; type?: string; status?: string; classId?: string; page: number }): Promise<DocumentPage> {
+    const brief = "d.settings->'brief'";
+    const kind = `COALESCE(${brief}->'documentType'->>'title', ${brief}->>'kind')`;
+    const title = `COALESCE(d.draft->>'title',
+      CASE WHEN NULLIF(${brief}->>'topics', '') IS NOT NULL THEN (${brief}->>'topics') || ' · ' || ${kind} END,
+      NULLIF(${brief}->>'subject', ''), NULLIF(left(${brief}->>'brief', 75), ''), 'Untitled ' || lower(${kind}))`;
+    const rows = await this.all<DocumentRow & ContextRow>(documentQuery + ` WHERE
+      ($1 = '' OR strpos(lower(concat_ws(' ', ${title}, ${brief}->>'subject', ${brief}->>'grade', c.title, l.title)), lower($1)) > 0)
+      AND ($2::text IS NULL OR ${brief}->'documentType'->>'id' = $2 OR ${brief}->>'kind' = $2)
+      AND ($3::text IS NULL OR CASE WHEN d.ready = 1 THEN 'Ready' WHEN d.draft IS NOT NULL THEN 'Draft' ELSE 'Planning' END = $3)
+      AND ($4::text IS NULL OR d.class_id::text = $4 OR ($4 = 'unfiled' AND d.class_id IS NULL))
+      ORDER BY d.updated DESC, d.id DESC LIMIT 51 OFFSET $5`, search.query, search.type ?? null,
+    search.status ?? null, search.classId ?? null, (search.page - 1) * 50);
+    return { items: rows.slice(0, 50).map(row => this.summary(row)), hasMore: rows.length > 50 };
+  }
+
+  private summary(row: DocumentRow & ContextRow): DocumentSummary {
+    const { brief } = decode<Settings>(row.settings);
+    const draft = row.draft ? decode<Assessment>(row.draft) : null;
+    const context = contextView(row);
+    const plannedTitle = brief.topics ? brief.topics + ' · ' + documentKind(brief) : brief.subject || brief.brief.slice(0, 75);
+    return { id: row.id, updated: row.updated, context, title: draft?.title ?? (plannedTitle || 'Untitled ' + documentKind(brief).toLowerCase()),
+      kind: brief.kind, documentType: brief.documentType, subject: brief.subject, grade: brief.grade, language: brief.language,
+      status: row.ready ? 'Ready' : draft ? 'Draft' : 'Planning' };
+  }
+
+  async activity(id: string): Promise<DocumentActivity> {
+    if (!uuid.safeParse(id).success) throw new NotFoundException('Document was not found.');
+    const document = await this.one<{ edit: number }>('SELECT edit FROM documents WHERE id = $1', id);
+    if (!document) throw new NotFoundException('Document was not found.');
+    const [sources, rows] = await Promise.all([
+      this.all<{ id: string; status: Source['status']; error: string | null; retryable: number; archived: boolean }>(
+        'SELECT id, status, error, retryable, archived FROM sources WHERE doc_id = $1 ORDER BY position', id),
+      this.all<Omit<JobSummary, 'settings'> & JobSummary['settings']>(`SELECT id, stage, created, audit->>'model' AS model,
+        audit->>'error' AS error, audit->>'versionId' AS "versionId", audit->'settings'->>'questionId' AS "questionId",
+        audit->'settings'->>'rag' AS rag, (audit->>'preview' IS NOT NULL) AS "hasPreview"
+        FROM jobs WHERE doc_id = $1 ORDER BY created DESC, position DESC`, id),
+    ]);
+    return { edit: document.edit,
+      sources: sources.map(source => ({ ...source, error: source.error ?? undefined, retryable: Boolean(source.retryable) })),
+      jobs: rows.map(({ rag, questionId, error, versionId, ...job }) => ({
+        ...job, error: error ?? undefined, versionId: versionId ?? undefined, settings: { rag, questionId: questionId ?? undefined },
+      })),
+    };
+  }
+
+  async job(id: string, jobId: string): Promise<Job> {
+    if (!uuid.safeParse(id).success || !uuid.safeParse(jobId).success) throw new NotFoundException('Generation attempt was not found.');
+    const row = await this.one<{ audit: string }>('SELECT audit FROM jobs WHERE doc_id = $1 AND id = $2', id, jobId);
+    if (!row) throw new NotFoundException('Generation attempt was not found.');
+    return decode(row.audit);
   }
 
   async document(id: string, lock = false): Promise<StudioDocument> {
@@ -151,7 +199,7 @@ export class StudioStore {
       settings: settingsSchema.parse(decode(row.settings)), draft: row.draft ? decode(row.draft) : null,
       sources: (await this.sourceRows(id)).map(source => ({
         id: source.id, name: source.name, type: source.type, status: source.status, preview: source.preview,
-        error: source.error ?? undefined, retryable: Boolean(source.retryable), chunks: source.chunks,
+        error: source.error ?? undefined, retryable: Boolean(source.retryable), chunks: source.chunks, archived: source.archived, materialId: source.material_id ?? undefined,
       })) };
   }
 
@@ -173,11 +221,11 @@ export class StudioStore {
       FROM sources WHERE doc_id = $1 ORDER BY position`, id);
   }
 
-  async selectedSources(id: string, settings: Settings) {
+  async selectedSources(id: string, settings: Settings, includeArchived = false) {
     const byId = new Map((await this.sourceRows(id)).map(source => [source.id, source]));
     return settings.sources.map(selection => {
       const source = byId.get(selection.id);
-      if (!source) throw new BadRequestException('Choose sources from this document.');
+      if (!source || (source.archived && !includeArchived)) throw new BadRequestException('Choose active sources from this document.');
       return { ...source, role: selection.role };
     });
   }
@@ -262,8 +310,12 @@ export class StudioStore {
       if (kind === 'Ready' && current.draft.warnings.length && !acceptWarnings) {
         throw new BadRequestException('Review and acknowledge the warnings before marking this version ready.');
       }
-      if (kind === 'Ready' && !current.draft.sections.some(section => section.questions.length)) {
-        throw new BadRequestException('Add a question before marking this version ready.');
+      if (kind === 'Ready') {
+        const issues = readinessIssues(current.draft, current.settings.brief);
+        if (issues.length) throw new BadRequestException({
+          message: 'Complete the draft review before marking this version ready.',
+          issues,
+        });
       }
       const revision = await this.addSnapshot(id, kind, current.draft, current.settings);
       if (kind === 'Ready') await this.run('UPDATE documents SET ready = 1, updated = $1, edit = edit + 1 WHERE id = $2', now(), id);
@@ -273,13 +325,65 @@ export class StudioStore {
 
   async restore(id: string, version: string, edit: number) {
     return this.transaction(async () => {
+      const current = await this.document(id, true);
+      if (current.edit !== edit) throw new ConflictException('A newer draft exists. Reload it before restoring.');
       const snapshot = await this.snapshot(id, version);
+      let checkpoint: { id: string } | undefined;
+      if (current.draft) {
+        checkpoint = await this.one<{ id: string }>(`SELECT id FROM revisions WHERE doc_id = $1
+          AND draft::jsonb = $2::jsonb AND settings::jsonb = $3::jsonb ORDER BY number DESC LIMIT 1`,
+        id, encode(current.draft), encode(current.settings));
+        if (!checkpoint) {
+          checkpoint = await this.addSnapshot(id, 'Teacher', current.draft, current.settings);
+          await this.renameSnapshot(id, checkpoint.id, current.settings.brief.language === 'de' ? 'Vor Wiederherstellung' : 'Before restore', 0);
+        }
+      }
+      const activeSources = new Set(current.sources.filter(source => !source.archived).map(source => source.id));
+      const settings = { ...snapshot.settings, sources: snapshot.settings.sources.filter(source => activeSources.has(source.id)) };
       const changed = await this.run('UPDATE documents SET draft = $1, settings = $2, updated = $3, ready = 0, edit = edit + 1 WHERE id = $4 AND edit = $5',
-        encode(snapshot.draft), encode(snapshot.settings), now(), id, edit);
+        encode(snapshot.draft), encode(settings), now(), id, edit);
       if (!changed.changes) throw new ConflictException('A newer draft exists. Reload it before restoring.');
-      await this.addSnapshot(id, 'Restored', snapshot.draft, snapshot.settings, snapshot.jobId);
-      return this.document(id);
+      await this.addSnapshot(id, 'Restored', snapshot.draft, settings, snapshot.jobId);
+      return { ...await this.document(id), restoreCheckpoint: checkpoint ? checkpoint.id : undefined };
     });
+  }
+
+  async duplicate(id: string, edit: number, context: DocumentContextInput, version?: string) {
+    return this.transaction(async () => {
+      const current = await this.document(id, true);
+      if (current.edit !== edit) throw new ConflictException('This document changed. Reload it before duplicating.');
+      const data = version ? await this.snapshot(id, version) : current;
+      const settings = { ...data.settings, sources: [] as Settings['sources'] };
+      const copy = await this.create(settings, context);
+      const sourceIds = new Map<string, string>();
+      const selected = new Map(data.settings.sources.map(source => [source.id, source.role]));
+      const referenced = new Set(data.draft?.evidence.map(evidence => evidence.sourceId));
+      for (const source of await this.sourceRows(id)) {
+        if (source.status !== 'ready' || (!selected.has(source.id) && !referenced.has(source.id))) continue;
+        const role = selected.get(source.id);
+        const active = Boolean(role && !source.archived);
+        const copied = await this.copySource(copy.id, source, !active);
+        sourceIds.set(source.id, copied);
+        if (role && active) settings.sources.push({ id: copied, role });
+      }
+      const draft = data.draft && { ...data.draft, evidence: data.draft.evidence.map(item => ({
+        ...item, sourceId: sourceIds.get(item.sourceId) ?? item.sourceId,
+      })) };
+      await this.run('UPDATE documents SET settings = $1, draft = $2 WHERE id = $3', encode(settings), draft && encode(draft), copy.id);
+      return this.document(copy.id);
+    });
+  }
+
+  async copySource(docId: string, source: SourceRow, archived = false, materialId?: string) {
+    const id = randomUUID();
+    await this.run(`INSERT INTO sources (id, doc_id, name, type, file_ext, status, preview, archived, original_id, material_id)
+      VALUES ($1, $2, $3, $4, $5, 'ready', $6, $7, $8, $9)`,
+    id, docId, source.name, source.type, source.file_ext, source.preview, archived,
+    source.type === 'file' ? source.original_id ?? source.id : null, materialId ?? null);
+    for (const chunk of await this.chunks(source.id)) {
+      await this.run('INSERT INTO chunks (id, source_id, ordinal, text) VALUES ($1, $2, $3, $4)', randomUUID(), id, chunk.ordinal, chunk.text);
+    }
+    return id;
   }
 
   async chunks(sourceId: string) {

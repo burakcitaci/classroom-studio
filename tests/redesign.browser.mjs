@@ -46,8 +46,9 @@ test('workspace tabs support arrow keys and audit drawer restores focus', async 
   await page.getByRole('button', { name: 'Compare with current', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Compare versions', exact: true })).toBeVisible();
   await expect(tabs.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true');
-  await page.getByRole('navigation', { name: 'Document progress' }).getByRole('button', { name: /Sources$/ }).click();
-  await expect(page.getByRole('navigation', { name: 'Document progress' }).getByRole('button', { name: /Sources$/ })).toHaveAttribute('aria-current', 'step');
+  await tabs.getByRole('tab', { name: 'Plan', exact: true }).click();
+  await expect(tabs.getByRole('tab', { name: 'Plan', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('heading', { name: 'Add your materials' })).toBeVisible();
 });
 
 test('mobile sheet and status filters remain usable at narrow widths', async ({ page }, info) => {

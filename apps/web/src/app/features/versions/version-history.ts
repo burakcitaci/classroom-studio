@@ -1,3 +1,4 @@
+import { DocumentFiling } from '../classrooms/document-filing';
 import { FormsModule } from '@angular/forms';
 import { TeacherDialog } from '../../shared/teacher-dialog/teacher-dialog';
 import { EmptyState, designCopy } from '../../shared/studio-ui';
@@ -12,11 +13,12 @@ import { formatTimestamp } from '../../shared/format-timestamp';
 
 @Component({
   selector: 'studio-version-history',
-  imports: [Icon, EmptyState, FormsModule, TeacherDialog],
+  imports: [DocumentFiling, Icon, EmptyState, FormsModule, TeacherDialog],
   templateUrl: './version-history.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class VersionHistory {
+  protected duplicateVersion?: Revision;
   protected readonly ui = ui;
   protected readonly normalizeHeading = normalizeSectionHeading;
   protected renaming?: Revision;

@@ -1,6 +1,15 @@
 @if (vm.draft; as assessment) {
   <div class="editor-layout">
   <div class="stack editor-main">
+    @if (showPreflight() && readiness.length) {
+      <section class="panel review-warnings" id="readiness-issues" tabindex="-1" aria-labelledby="readiness-heading">
+        <h3 id="readiness-heading" i18n="@@readinessHeading">Finish reviewing this draft</h3>
+        <ul>@for (issue of readiness; track $index) {
+          <li>@if ('questionId' in issue) { <button type="button" class="link-button" (click)="focusIssue(issue)">{{ issueMessage(issue) }}</button> }
+          @else { {{ issueMessage(issue) }} }</li>
+        }</ul>
+      </section>
+    }
     @if (assessment.warnings.length) {
       <section class="panel review-warnings" id="draft-review-notes" tabindex="-1" aria-labelledby="draft-review-heading">
         <h3 id="draft-review-heading"><studio-icon name="warning" /><span i18n="@@reviewNotesHeading">Review notes</span> <span class="count">{{ assessment.warnings.length }}</span></h3>
@@ -12,13 +21,13 @@
     @if (pendingPreviews.length) {
       <div class="panel"><h2 i18n="@@ui_0967f88e485b">Question regeneration</h2>
         @for (job of pendingPreviews; track job.id) {
-          <button class="btn small mt-2" (click)="previewJob = job" i18n="@@ui_ff3f224a9426">Preview regenerated question</button>
+          <button class="btn small mt-2" (click)="previewReplacement(job)" i18n="@@ui_ff3f224a9426">Preview regenerated question</button>
         }
-        @if (previewJob; as job) {
+        @if (previewJob(); as job) {
           <div class="note-form"><h3 i18n="@@ui_00e1ebf55cb1">Proposed replacement</h3><p>{{ job.preview?.prompt }}</p><p><strong i18n="@@ui_4b2a6a314956">Points</strong> {{ job.preview?.points }}</p>
             <p><strong i18n="@@ui_a16a4eda7cb2">Answer</strong> {{ job.preview?.answer }}</p><p><strong i18n="@@ui_a6e081bd4fc6">Scoring</strong> {{ job.preview?.rubric }}</p>
             <div class="button-row"><button class="btn small primary" (click)="replaceQuestion(job)" i18n="@@ui_03aa2f263b0f">Replace question</button>
-              <button class="btn small" (click)="previewJob = undefined" i18n="@@ui_baa5503537a8">Close preview</button></div>
+              <button class="btn small" (click)="previewJob.set(undefined)" i18n="@@ui_baa5503537a8">Close preview</button></div>
           </div>
         }
       </div>
@@ -62,8 +71,8 @@
               </div>
               @if (vm.showTeacher()) {
                 <div class="teacher-fields">
-                  <label class="field"><ng-container i18n="@@ui_2acd294c79e0">Teacher answer</ng-container><textarea rows="2" maxlength="3500" [(ngModel)]="question.answer" (ngModelChange)="vm.change()"></textarea></label>
-                  <label class="field"><ng-container i18n="@@ui_58c642b99773">Scoring guidance</ng-container><textarea rows="2" maxlength="3500" [(ngModel)]="question.rubric" (ngModelChange)="vm.change()"></textarea></label>
+                  <label class="field"><ng-container i18n="@@ui_2acd294c79e0">Teacher answer</ng-container><textarea [id]="'missingAnswer-' + question.id" rows="2" maxlength="3500" [(ngModel)]="question.answer" (ngModelChange)="vm.change()"></textarea></label>
+                  <label class="field"><ng-container i18n="@@ui_58c642b99773">Scoring guidance</ng-container><textarea [id]="'missingScoring-' + question.id" rows="2" maxlength="3500" [(ngModel)]="question.rubric" (ngModelChange)="vm.change()"></textarea></label>
                   @for (source of evidenceFor(assessment, question); track source.id) {
                     <details class="evidence"><summary><studio-icon name="paperclip" /> {{ source.name }} <ng-container i18n="@@ui_4b10aa3e6014">· passage</ng-container> {{ source.ordinal + 1 }}</summary><blockquote>{{ source.text }}</blockquote></details>
                   }

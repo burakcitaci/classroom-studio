@@ -47,6 +47,27 @@ test('direct preview saves the latest draft and toast actions resolve a save con
 });
 
 
+test('readiness links to the missing field and undo restore recovers unsnapshotted edits', async ({ page }) => {
+  const doc = await (await page.request.post('/api/documents', { data: { kind: 'Worksheet' } })).json();
+  const path = '/api/documents/' + doc.id;
+  const draft = { title: 'Editable worksheet', instructions: 'Original instructions', teacherNotes: '', evidence: [], warnings: [],
+    sections: [{ id: crypto.randomUUID(), title: 'Review', instructions: '', questions: [{
+      id: crypto.randomUUID(), prompt: 'Name a planet.', points: 1, lines: 1, answer: '', rubric: '', citations: [],
+    }] }] };
+  const saved = await (await page.request.patch(path, { data: { edit: doc.edit, settings: doc.settings, draft } })).json();
+  await page.request.post(path + '/versions', { data: { edit: saved.edit, kind: 'Teacher' } });
+  await page.goto('/?document=' + doc.id + '&view=editor&lang=en');
+  await page.getByRole('button', { name: 'Mark as ready' }).click();
+  await page.getByRole('button', { name: 'Question 1 needs an answer.' }).click();
+  await expect(page.getByLabel('Teacher answer', { exact: true })).toBeFocused();
+  await page.getByLabel('Student instructions').fill('Later edits');
+  await page.getByRole('tab', { name: 'History', exact: true }).click();
+  await page.getByRole('button', { name: 'Restore as working draft' }).click();
+  await expect(page.getByLabel('Student instructions')).toHaveValue('Original instructions');
+  await page.getByRole('button', { name: 'Undo restore' }).click();
+  await expect(page.getByLabel('Student instructions')).toHaveValue('Later edits');
+});
+
 test('review notes stay visible, draft saving is allowed and readiness points to acknowledgment', async ({ page }) => {
   const created = await (await page.request.post('/api/documents', { data: { kind: 'Exam' } })).json();
   const warnings = ['Check the atlas page references before printing.', 'Review the scale calculation for this class.'];

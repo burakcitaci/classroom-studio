@@ -1,6 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -41,6 +41,77 @@ after(async () => {
   await stop();
   await database?.close();
   if (folder) await rm(folder, { recursive: true, force: true });
+});
+
+test('startup reports an occupied API port and exits without leaving its database pool open', async () => {
+  const duplicate = spawn(process.execPath, ['dist/api/apps/api/src/main.js'], {
+    env: { ...process.env, ...database.env, STUDIO_PROVIDER: 'demo', STUDIO_PORT: String(port), STUDIO_DATA: folder, NODE_ENV: 'test' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let diagnostic = '';
+  duplicate.stdout.on('data', data => { diagnostic += data; });
+  duplicate.stderr.on('data', data => { diagnostic += data; });
+  const timeout = setTimeout(() => duplicate.kill(), 10_000);
+  try {
+    const [code, signal] = await once(duplicate, 'close');
+    assert.equal(signal, null, diagnostic);
+    assert.equal(code, 1, diagnostic);
+    assert.match(diagnostic, /EADDRINUSE/);
+    assert.match(diagnostic, /Stop the existing API process/);
+    assert.ok(await client.json('/status'));
+  } finally {
+    clearTimeout(timeout);
+    if (duplicate.exitCode === null && duplicate.signalCode === null) duplicate.kill();
+  }
+});
+
+test('API exits after its launcher is forcibly terminated and the same port can be reused repeatedly', async () => {
+  const orphanClient = apiClient('http://127.0.0.1:4373');
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const launcherCommand = process.platform === 'win32'
+      ? ['powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `
+          $studioChild = Start-Process -FilePath $env:STUDIO_TEST_NODE -ArgumentList 'dist/api/apps/api/src/main.js' -WindowStyle Hidden -PassThru
+          Write-Output ('API_PID=' + $studioChild.Id)
+          Wait-Process -Id $studioChild.Id
+        `]]
+      : [process.execPath, ['--input-type=module', '-e', `
+      import { spawn } from 'node:child_process';
+      const api = spawn(process.execPath, ['dist/api/apps/api/src/main.js'], { stdio: ['ignore', 'inherit', 'inherit'] });
+      console.log('API_PID=' + api.pid);
+    `]];
+    const launcher = spawn(...launcherCommand, {
+      env: { ...process.env, ...database.env, STUDIO_PROVIDER: 'demo', STUDIO_PORT: '4373', STUDIO_DATA: folder, NODE_ENV: 'test', STUDIO_TEST_NODE: process.execPath },
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+    let diagnostic = '';
+    launcher.stdout.on('data', data => { diagnostic += data; });
+    launcher.stderr.on('data', data => { diagnostic += data; });
+    const closed = once(launcher, 'close');
+    try {
+      await until(async () => {
+        assert.equal(launcher.exitCode, null, diagnostic);
+        return orphanClient.json('/status').catch(() => null);
+      });
+      // Kill only the launcher, not its process tree: this reproduces a lost
+      // terminal/runner without giving the API a chance to receive a signal.
+      if (process.platform === 'win32') {
+        execFileSync('taskkill.exe', ['/PID', String(launcher.pid), '/F'], { windowsHide: true, stdio: 'pipe' });
+      } else {
+        launcher.kill('SIGKILL');
+      }
+      await until(() => orphanClient.json('/status').then(() => false, () => true));
+      await closed;
+      await assert.rejects(orphanClient.json('/status'));
+      assert.ok(await client.json('/status'));
+    } finally {
+      if (launcher.exitCode === null && launcher.signalCode === null) launcher.kill('SIGKILL');
+      const apiPid = Number(/API_PID=(\d+)/.exec(diagnostic)?.[1]);
+      if (apiPid) {
+        try { process.kill(apiPid, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+      }
+    }
+  }
 });
 
 test('extracts real TXT, PDF and DOCX; reports missing text and denies invalid uploads and origins', async () => {
@@ -236,6 +307,59 @@ test('classroom planning scopes lessons, prefills documents and preserves drafts
   assert.equal((await client.json(path)).lessons[0].id, lesson.id);
   await client.json(path + '/status', { method: 'PATCH', body: { archived: false } });
   assert.equal((await client.json(path)).classroom.archived, false);
+});
+
+test('readiness, source retirement, class materials and duplication preserve teacher work', async () => {
+  const classroom = await client.json('/classes', { method: 'POST', body: { title: 'Reuse 8A', subject: 'Geography', grade: '8' } });
+  const context = { classId: classroom.id, lessonId: null };
+  const original = await client.json('/documents', { method: 'POST', body: { kind: 'Exam', context } });
+  const path = '/documents/' + original.id;
+  const addNote = name => client.json(path + '/notes', { method: 'POST', body: { name, text: 'Contour lines represent elevation.' } });
+  const note = await addNote('Map notes');
+  for (let index = 0; index < 7; index++) await addNote('Notes ' + index);
+  assert.equal((await client.send(path + '/notes', { method: 'POST', body: { name: 'Extra', text: 'An extra note.' } })).status, 400);
+
+  const settings = { ...original.settings, brief: { ...original.settings.brief, totalPoints: 5 }, sources: [{ id: note.id, role: 'content' }] };
+  const question = { id: randomUUID(), prompt: 'What do contour lines show?', points: 1, lines: 2, answer: '', rubric: '', citations: [] };
+  const draft = { title: 'Map assessment', instructions: '', teacherNotes: '', warnings: [], evidence: [],
+    sections: [{ id: randomUUID(), title: 'Maps', instructions: '', questions: [question] }] };
+  let doc = await client.json(path, { method: 'PATCH', body: { edit: original.edit, settings, draft } });
+  const rejected = await client.send(path + '/versions', { method: 'POST', body: { edit: doc.edit, kind: 'Ready' } });
+  assert.equal(rejected.status, 400);
+  assert.deepEqual((await rejected.json()).issues.map(issue => issue.code), ['pointsMismatch', 'missingAnswer', 'missingScoring']);
+  Object.assign(question, { points: 5, answer: 'Elevation.', rubric: 'Award five points for identifying elevation.' });
+  doc = await client.json(path, { method: 'PATCH', body: { edit: doc.edit, settings, draft } });
+  const ready = await client.json(path + '/versions', { method: 'POST', body: { edit: doc.edit, kind: 'Ready' } });
+  const library = await client.json(path + '/sources/' + note.id + '/share', { method: 'POST' });
+  assert.deepEqual(library.map(item => item.id), [note.id]);
+  const archived = await client.json(path + '/sources/' + note.id + '/archive', { method: 'POST', body: { edit: doc.edit + 1 } });
+  assert.equal(archived.sources.find(item => item.id === note.id).archived, true);
+  assert.deepEqual(archived.settings.sources, []);
+  await addNote('Replacement');
+
+  const copy = await client.json(path + '/duplicate', { method: 'POST', body: { edit: archived.edit, context, version: ready.id } });
+  assert.equal(copy.ready, false);
+  assert.equal(copy.context.classId, classroom.id);
+  assert.equal(copy.draft.title, draft.title);
+  const attached = await client.json('/documents/' + copy.id + '/materials/' + note.id, { method: 'POST' });
+  assert.notEqual(attached.id, note.id);
+  assert.equal(attached.materialId, note.id);
+  assert.equal(attached.preview, note.preview);
+  const unfiled = await client.create();
+  assert.equal((await client.send('/documents/' + unfiled.id + '/materials/' + note.id, { method: 'POST' })).status, 404);
+
+  const changed = await client.json(path, { method: 'PATCH', body: { edit: archived.edit, settings: archived.settings,
+    draft: { ...draft, title: 'Later teacher edit' } } });
+  const restored = await client.json(path + '/versions/' + ready.id + '/restore', { method: 'POST', body: { edit: changed.edit } });
+  assert.equal(restored.draft.title, draft.title);
+  assert.deepEqual(restored.settings.sources, []);
+  const versions = await client.json(path + '/versions');
+  assert.equal(versions.find(version => version.id === restored.restoreCheckpoint).draft.title, 'Later teacher edit');
+  assert.equal(versions.find(version => version.id === ready.id).settings.sources[0].id, note.id);
+  const activity = await client.json(path + '/activity');
+  assert.equal(activity.edit, restored.edit);
+  assert.equal(activity.sources.find(source => source.id === note.id).archived, true);
+  assert.equal('draft' in activity, false);
 });
 
 test('reusable document types persist and existing documents retain their guidance snapshot', async () => {

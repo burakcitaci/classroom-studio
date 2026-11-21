@@ -12,6 +12,7 @@
     </div>
     <div class="document-header-actions">
       <button class="btn" type="button" aria-haspopup="dialog" [disabled]="vm.savingPlan" (click)="showFiling = true">{{ ui('Organize') }}</button>
+      <button class="btn" type="button" aria-haspopup="dialog" [disabled]="vm.busy || vm.planEditing" (click)="showDuplicate = true" i18n="@@duplicateDocument">Duplicate document</button>
       @if (vm.draft) {
         <button class="btn" type="button" aria-haspopup="dialog" (click)="vm.toggleExports()"><studio-icon name="download" />{{ ui('Export') }}</button>
         @if (selectedTab === 'editor') { <button class="btn primary ready-action" [disabled]="vm.busy || doc.ready" (click)="editor()?.markReady()"><studio-icon name="check" />{{ doc.ready ? ui('Ready') : ui('Mark as ready') }}</button> }
@@ -20,33 +21,29 @@
     </div>
   </header>
 
-  <nav class="progress-stepper" [attr.aria-label]="copy.progress">
-    <button (click)="step('brief')" [attr.aria-current]="currentStep === 'brief' ? 'step' : null" [class.current]="currentStep === 'brief'" [class.complete]="!vm.planEditing && !!vm.settings.brief.brief.trim()"><span class="step-number">01</span>{{ copy.plan }}</button><span class="step-line"></span>
-    <button (click)="step('sources')" [attr.aria-current]="currentStep === 'sources' ? 'step' : null" [class.current]="currentStep === 'sources'" [class.complete]="!!vm.selectedSourceCount"><span class="step-number">02</span>{{ copy.sources }}</button><span class="step-line"></span>
-    <button (click)="step('editor')" [attr.aria-current]="currentStep === 'editor' ? 'step' : null" [class.current]="currentStep === 'editor'" [class.complete]="!!vm.draft"><span class="step-number">03</span>{{ copy.draft }}</button><span class="step-line"></span>
-    <button (click)="step('editor')" [attr.aria-current]="currentStep === 'ready' ? 'step' : null" [class.current]="currentStep === 'ready'"><span class="step-number">04</span>{{ copy.ready }}</button>
-  </nav>
-
+  @if (showDuplicate) { <studio-document-filing [context]="doc.context" [duplicate]="true" (closed)="showDuplicate = false" /> }
   @if (showFiling) { <studio-document-filing [context]="doc.context" (closed)="showFiling = false" /> }
-  @if (vm.showExports && vm.draft) {
+  @if (vm.showExports && (vm.draft || vm.exportVersion)) {
     <studio-teacher-dialog i18n-title="@@ui_b7924d082df0" title="Export document" (closed)="vm.toggleExports()">
+      <p class="muted mb-3">
+        @if (vm.exportVersion; as version) {
+          @if (version.name) { {{ version.name }} · }
+          <ng-container i18n="@@ui_2da600bf9404">Version</ng-container> {{ version.number }} · {{ version.draft.title }}
+        } @else { <ng-container i18n="@@exportWorkingDraft">Working draft</ng-container> · {{ vm.draft?.title }}
+        }
+      </p>
       <div class="export-grid">
-        <section i18n-aria-label="@@ui_e04bab0e9fb5" aria-label="Student copy">
-          <h3 i18n="@@ui_e04bab0e9fb5">Student copy</h3>
-          <p i18n="@@ui_3041a7a266e4">Questions, points and answer space.</p>
-          <div class="button-row">
-            <button type="button" class="btn small" (click)="vm.export('student', 'docx')" i18n="@@ui_f98e5ce3b490">Download Word</button>
-            <button type="button" class="btn small" (click)="vm.export('student', 'print')" i18n="@@ui_9e7c0f331d31">Print preview</button>
-          </div>
-        </section>
-        <section i18n-aria-label="@@ui_7315ba900844" aria-label="Teacher copy">
-          <h3 i18n="@@ui_7315ba900844">Teacher copy</h3>
-          <p i18n="@@ui_55889c9a0860">Answers, scoring and source evidence.</p>
-          <div class="button-row">
-            <button type="button" class="btn small" (click)="vm.export('teacher', 'docx')" i18n="@@ui_f98e5ce3b490">Download Word</button>
-            <button type="button" class="btn small" (click)="vm.export('teacher', 'print')" i18n="@@ui_9e7c0f331d31">Print preview</button>
-          </div>
-        </section>
+        @for (copy of vm.exportCopies; track copy; let preferred = $first) {
+          <section [attr.aria-label]="ui(copy === 'student' ? 'Student copy' : 'Teacher copy')">
+            <h3>{{ ui(copy === 'student' ? 'Student copy' : 'Teacher copy') }}</h3>
+            @if (copy === 'student') { <p i18n="@@ui_3041a7a266e4">Questions, points and answer space.</p> }
+            @else { <p i18n="@@ui_55889c9a0860">Answers, scoring and source evidence.</p> }
+            <div class="button-row">
+              <button type="button" class="btn small" [class.primary]="preferred" (click)="vm.export(copy, 'docx', vm.exportVersion)" i18n="@@ui_f98e5ce3b490">Download Word</button>
+              <button type="button" class="btn small" (click)="vm.export(copy, 'print', vm.exportVersion)" i18n="@@ui_9e7c0f331d31">Print preview</button>
+            </div>
+          </section>
+        }
       </div>
     </studio-teacher-dialog>
   }
@@ -55,7 +52,7 @@
     <span class="sr-only" id="workspace-save-help">{{ ui('Saving changes…') }}</span>
     <div class="tabs" role="tablist" [attr.aria-label]="ui('Document workspace')" (keydown)="tabKeys($event)">
       @for (item of tabs; track item.id) {
-        <button type="button" role="tab" [id]="'tab-' + item.id" [disabled]="vm.savingPlan" [attr.aria-describedby]="vm.savingPlan ? 'workspace-save-help' : null" [class.selected]="selectedTab === item.id" [attr.aria-selected]="selectedTab === item.id" [attr.aria-controls]="'panel-' + item.id" [attr.tabindex]="selectedTab === item.id ? 0 : -1" (click)="sourceStep = false; vm.selectTab(item.id)"><studio-icon [name]="item.icon" />{{ item.id === 'brief' ? copy.plan : ui(item.label) }}</button>
+        <button type="button" role="tab" [id]="'tab-' + item.id" [disabled]="vm.savingPlan" [attr.aria-describedby]="vm.savingPlan ? 'workspace-save-help' : null" [class.selected]="selectedTab === item.id" [attr.aria-selected]="selectedTab === item.id" [attr.aria-controls]="'panel-' + item.id" [attr.tabindex]="selectedTab === item.id ? 0 : -1" (click)="vm.selectTab(item.id)"><studio-icon [name]="item.icon" />{{ item.id === 'brief' ? copy.plan : ui(item.label) }}</button>
       }
     </div>
     @if (selectedTab === 'editor') { <button class="btn ghost small" type="button" aria-haspopup="dialog" (click)="vm.selectTab('audit')"><studio-icon name="audit" />{{ copy.why }}</button> }

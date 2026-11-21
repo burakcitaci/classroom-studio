@@ -1,7 +1,7 @@
 import { ui } from '../../core/i18n/ui-messages';
 import { ChangeDetectionStrategy, Component, inject, input, OnInit, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import type { ClassroomSummary, DocumentContext, Lesson } from '../../../../../../libs/contracts/src';
+import type { ClassroomSummary, DocumentContext, Lesson, Revision } from '../../../../../../libs/contracts/src';
 import { TeacherDialog } from '../../shared/teacher-dialog/teacher-dialog';
 import { WorkspaceStore } from '../workspace/workspace-store';
 import { ClassroomsApi } from './classrooms-api';
@@ -16,6 +16,15 @@ export class DocumentFiling implements OnInit {
   protected readonly ui = ui;
   readonly context = input.required<DocumentContext | null>();
   readonly closed = output<void>();
+  readonly duplicate = input(false);
+  readonly version = input<Revision>();
+  protected get title() {
+    return this.duplicate() ? $localize`:@@duplicateDocument:Duplicate document` : $localize`:@@ui_780a5add242b:Organize document`;
+  }
+  protected get description() {
+    return this.duplicate() ? $localize`:@@duplicateDocumentHelp:Choose a destination for the new editable copy.`
+      : $localize`:@@ui_47046024420b:Choose where this document should appear in your class planner.`;
+  }
   private readonly api = inject(ClassroomsApi);
   private readonly workspace = inject(WorkspaceStore);
   private loadId = 0;
@@ -34,7 +43,8 @@ export class DocumentFiling implements OnInit {
     this.lessonId = context?.lessonId ?? '';
     try {
       const classes = await this.api.list();
-      this.classes.set(classes.filter(item => !item.archived || item.id === context?.classId));
+      this.classes.set(classes.filter(item => !item.archived || (!this.duplicate() && item.id === context?.classId)));
+      if (this.duplicate() && !this.classes().some(item => item.id === this.classId)) this.classId = this.lessonId = '';
       await this.loadLessons();
     } catch (error) {
       this.error.set(error instanceof Error ? error.message : $localize`:@@ui_c3965316d97f:Could not load classes.`);
@@ -65,10 +75,12 @@ export class DocumentFiling implements OnInit {
   protected async save() {
     this.saving.set(true);
     try {
-      if (await this.workspace.fileDocument({ classId: this.classId || null, lessonId: this.lessonId || null })) {
+      const context = { classId: this.classId || null, lessonId: this.lessonId || null };
+      const saved = this.duplicate() ? await this.workspace.duplicateDocument(context, this.version()) : await this.workspace.fileDocument(context);
+      if (saved) {
         this.closed.emit();
       } else {
-        this.error.set(this.workspace.view.error || $localize`:@@ui_4e82cdc69cd3:Could not file this document.`);
+        this.error.set(this.workspace.view.error || this.title);
       }
     } finally { this.saving.set(false); }
   }

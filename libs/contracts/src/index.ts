@@ -7,6 +7,7 @@ export * from './classrooms.js';
 
 export const kinds = ['Exam', 'Quiz', 'Worksheet', 'Practice Test', 'Custom'] as const;
 export const modes = ['Off', 'Basic', 'Advanced', 'Graph'] as const;
+export const sourceLimit = 8;
 export const roles = ['format', 'content', 'both'] as const;
 export const roleLabels = { format: 'Match this format', content: 'Use this content', both: 'Both' } as const;
 export type RagMode = typeof modes[number];
@@ -33,7 +34,7 @@ export type Brief = z.infer<typeof briefSchema>;
 export const selectionSchema = z.strictObject({ id: uuid, role: z.enum(roles) });
 export const settingsSchema = z.strictObject({
   brief: briefSchema,
-  sources: z.array(selectionSchema).max(8).refine(rows => new Set(rows.map(row => row.id)).size === rows.length),
+  sources: z.array(selectionSchema).max(sourceLimit).refine(rows => new Set(rows.map(row => row.id)).size === rows.length),
   rag: z.enum(modes),
   generationModel: text(240).optional(),
   automatic: z.boolean().default(true),
@@ -107,7 +108,20 @@ export interface Source {
   chunks: number;
   error?: string;
   retryable: boolean;
+  archived?: boolean;
+  materialId?: string;
 }
+export interface ClassMaterial {
+  id: string;
+  name: string;
+  type: Source['type'];
+}
+
+export interface DocumentPage {
+  items: DocumentSummary[];
+  hasMore: boolean;
+}
+
 export interface DocumentSummary {
   id: string;
   title: string;
@@ -126,6 +140,7 @@ export interface StudioDocument extends Working {
   updated: string;
   ready: boolean;
   sources: Source[];
+  restoreCheckpoint?: string;
 }
 export interface Revision {
   id: string;
@@ -163,9 +178,48 @@ export interface Job {
   versionId?: string;
   preview?: Question;
 }
-export const isActive = (job: Job) => job.stage !== 'succeeded' && job.stage !== 'failed';
+export interface JobSummary extends Pick<Job, 'id' | 'stage' | 'created' | 'model' | 'error' | 'versionId'> {
+  settings: Pick<Generation, 'questionId' | 'rag'>;
+  hasPreview: boolean;
+}
+
+export function summarizeJob(job: Job): JobSummary {
+  return { id: job.id, stage: job.stage, created: job.created, model: job.model, error: job.error,
+    versionId: job.versionId, settings: { questionId: job.settings.questionId, rag: job.settings.rag }, hasPreview: Boolean(job.preview) };
+}
+
+export interface DocumentActivity {
+  edit: number;
+  sources: Pick<Source, 'id' | 'status' | 'error' | 'retryable' | 'archived'>[];
+  jobs: JobSummary[];
+}
+
+export const isActive = (job: Pick<Job, 'stage'>) => job.stage !== 'succeeded' && job.stage !== 'failed';
 export const totalPoints = (draft: Assessment) =>
   draft.sections.flatMap(section => section.questions).reduce((sum, question) => sum + question.points, 0);
+
+export type ReadinessIssue =
+  | { code: 'noQuestions' }
+  | { code: 'pointsMismatch'; actual: number; expected: number }
+  | { code: 'missingAnswer' | 'missingScoring'; questionId: string; question: number };
+
+export function readinessIssues(draft: Assessment, brief: Brief): ReadinessIssue[] {
+  const questions = draft.sections.flatMap(section => section.questions);
+  if (!questions.length) return [{ code: 'noQuestions' }];
+  const issues: ReadinessIssue[] = [];
+  const actual = totalPoints(draft);
+  if (brief.totalPoints != null && actual !== brief.totalPoints) {
+    issues.push({ code: 'pointsMismatch', actual, expected: brief.totalPoints });
+  }
+  questions.forEach((question, index) => {
+    if (brief.documentType?.audience === 'teacher' || question.points > 0) {
+      const location = { questionId: question.id, question: index + 1 };
+      if (!question.answer.trim()) issues.push({ code: 'missingAnswer', ...location });
+      if (question.points > 0 && !question.rubric.trim()) issues.push({ code: 'missingScoring', ...location });
+    }
+  });
+  return issues;
+}
 
 export function initialSettings(kind: Brief['kind'] = 'Exam'): Settings {
   return {

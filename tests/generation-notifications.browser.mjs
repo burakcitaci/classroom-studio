@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test';
 
+const summary = job => ({ id: job.id, stage: 'generating', model: job.model, created: job.created,
+  settings: { rag: job.settings.rag, questionId: job.settings.questionId }, hasPreview: false });
+
 test('a poll started before generation cannot clear and replay its notification', async ({ page }) => {
   const doc = await (await page.request.post('/api/documents', { data: { kind: 'Exam' } })).json();
   expect((await page.request.patch('/api/documents/' + doc.id, { data: {
@@ -12,18 +15,20 @@ test('a poll started before generation cannot clear and replay its notification'
   let release;
   const pollGate = new Promise(resolve => { release = resolve; });
   await page.route('**/api/documents/' + doc.id + '/jobs', async route => {
-    if (route.request().method() === 'POST') {
-      const response = await route.fetch();
-      job = { ...await response.json(), stage: 'generating' };
-      return route.fulfill({ response, json: job });
-    }
+    const response = await route.fetch();
+    job = { ...await response.json(), stage: 'generating' };
+    return route.fulfill({ response, json: job });
+  });
+  await page.route('**/api/documents/' + doc.id + '/activity', async route => {
+    const response = await route.fetch();
+    const activity = await response.json();
     if (holdPoll && !held) {
       held = true;
       await pollGate;
-      return route.fulfill({ json: [] });
+      return route.fulfill({ response, json: { ...activity, jobs: [] } });
     }
     if (job) polls++;
-    return route.fulfill({ json: job ? [job] : [] });
+    return route.fulfill({ response, json: { ...activity, jobs: job ? [summary(job)] : [] } });
   });
   await page.goto('/?document=' + doc.id + '&view=brief&lang=de');
   await expect(page.getByRole('button', { name: 'Entwurf erstellen', exact: true })).toBeEnabled();
@@ -49,14 +54,16 @@ test('a delayed generation response does not repeat the writing notification', a
   const responseGate = new Promise(resolve => { release = resolve; });
   let polls = 0;
   await page.route('**/api/documents/' + doc.id + '/jobs', async route => {
-    if (route.request().method() === 'POST') {
-      const response = await route.fetch();
-      job = await response.json();
-      await responseGate;
-      return route.fulfill({ response, json: job });
-    }
-    if (job) { polls++; return route.fulfill({ json: [{ ...job, stage: 'generating' }] }); }
-    return route.fulfill({ json: [] });
+    const response = await route.fetch();
+    job = await response.json();
+    await responseGate;
+    return route.fulfill({ response, json: job });
+  });
+  await page.route('**/api/documents/' + doc.id + '/activity', async route => {
+    const response = await route.fetch();
+    const activity = await response.json();
+    if (job) { polls++; return route.fulfill({ response, json: { ...activity, jobs: [summary(job)] } }); }
+    return route.fulfill({ response, json: { ...activity, jobs: [] } });
   });
   await page.goto('/?document=' + doc.id + '&view=brief&lang=de');
   await page.getByRole('button', { name: 'Entwurf erstellen', exact: true }).click();

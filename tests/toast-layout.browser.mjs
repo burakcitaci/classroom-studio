@@ -6,9 +6,9 @@ for (const width of [1280, 390, 320]) {
     const document = await (await page.request.post('/api/documents', { data: { kind: 'Exam' } })).json();
     await page.goto('/?document=' + document.id + '&lang=de');
     await page.getByLabel('Was soll Studio erstellen?').fill('Eine Geographieprüfung über Karten und Orientierung.');
+    await page.getByText('Erweiterte Einstellungen', { exact: true }).click();
     await page.getByRole('radio', { name: /^Einfach/ }).check();
-    await page.getByRole('button', { name: 'Plan speichern', exact: true }).click();
-    await page.getByRole('button', { name: 'Entwurf erstellen', exact: true }).click();
+    await page.getByRole('button', { name: 'Plan speichern und Entwurf erstellen', exact: true }).click();
     const failure = page.locator('[data-sonner-toast][data-type="error"]').filter({ hasText: 'Letzter Versuch fehlgeschlagen' });
     await expect(failure).toBeVisible();
     await expect(failure).toContainText('Es wurden keine geeigneten Textauszüge gefunden.');

@@ -1,7 +1,7 @@
-import { Body, Controller, Delete, Param, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { z } from 'zod';
-import { check } from '../http/validation.js';
+import { check, editSchema } from '../http/validation.js';
 import { MAX_UPLOAD } from './extract-text.js';
 import { SourcesService } from './sources.service.js';
 
@@ -10,6 +10,15 @@ const noteSchema = z.strictObject({ name: z.string().trim().min(1).max(120), tex
 @Controller('documents/:id')
 export class SourcesController {
   constructor(private readonly sources: SourcesService) {}
+
+  @Get('materials')
+  materials(@Param('id') id: string) { return this.sources.materials(id); }
+
+  @Post('materials/:source')
+  attachMaterial(@Param('id') id: string, @Param('source') source: string) { return this.sources.attachMaterial(id, source); }
+
+  @Post('sources/:source/share')
+  shareMaterial(@Param('id') id: string, @Param('source') source: string) { return this.sources.shareMaterial(id, source); }
 
   @Post('files')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD, files: 1, fields: 0, parts: 2 } }))
@@ -23,6 +32,11 @@ export class SourcesController {
 
   @Post('sources/:source/retry')
   retry(@Param('id') id: string, @Param('source') source: string) { return this.sources.retry(id, source); }
+
+  @Post('sources/:source/archive')
+  archive(@Param('id') id: string, @Param('source') source: string, @Body() body: unknown) {
+    return this.sources.archive(id, source, check(z.strictObject({ edit: editSchema }), body).edit);
+  }
 
   @Delete('sources/:source')
   remove(@Param('id') id: string, @Param('source') source: string) { return this.sources.remove(id, source); }

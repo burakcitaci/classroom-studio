@@ -7,7 +7,7 @@
         <div class="grow">@if (version.name) { <strong class="version-custom-name">{{ version.name }}</strong> }<strong><ng-container i18n="@@ui_2da600bf9404">Version</ng-container> {{ version.number }} · {{ version.draft.title }}</strong><small>{{ time(version.created) }} · {{ points(version.draft) }} <ng-container i18n="@@ui_819f41f05837">points</ng-container></small></div>
         <span class="badge" [class.green]="version.kind === 'Ready'">{{ ui(version.kind) }}</span>
         <button class="btn small" (click)="vm.viewVersion(version)"><ng-container i18n="@@ui_933d4419bb90">Preview version</ng-container> {{ version.number }}</button>
-        <div class="history-actions button-row"><button class="btn ghost small" (click)="editName(version)" [attr.aria-label]="copy.renameVersion + ' ' + version.number"><studio-icon name="edit" />{{ copy.renameVersion }}</button><button class="btn ghost small" [disabled]="vm.busy" (click)="vm.restore(version)">{{ ui('Restore as working draft') }}</button><button class="btn ghost small" (click)="vm.export('student', 'docx', version)">{{ ui('Student Word') }}</button><button class="btn ghost small" [disabled]="!vm.draft" (click)="compare(version)"><studio-icon name="compare" />{{ copy.compare }}</button></div>
+        <div class="history-actions button-row"><button class="btn ghost small" (click)="editName(version)" [attr.aria-label]="copy.renameVersion + ' ' + version.number"><studio-icon name="edit" />{{ copy.renameVersion }}</button><button class="btn ghost small" [disabled]="vm.busy" (click)="vm.restore(version)">{{ ui('Restore as working draft') }}</button><button class="btn ghost small" (click)="vm.toggleExports(version)">{{ ui('Export') }}</button><button class="btn ghost small" [disabled]="!vm.draft" (click)="compare(version)"><studio-icon name="compare" />{{ copy.compare }}</button></div>
       </div>
     } @empty { <studio-empty-state icon="history" [title]="copy.noVersions" [description]="ui('Saved versions will appear after your first generation or explicit save.')"><button class="btn" (click)="vm.selectTab('editor')">{{ ui('Open editor') }}</button></studio-empty-state> }
   </section>
@@ -17,10 +17,8 @@
       <button class="icon-button" i18n-aria-label="@@ui_5ea4651e0596" aria-label="Close version preview" (click)="vm.preview = undefined"><studio-icon name="x" /></button></div>
       <div class="button-row">
         <button class="btn small primary" [disabled]="vm.busy" (click)="vm.restore(version)" i18n="@@ui_111b3068e276">Restore as working draft</button>
-        <button class="btn small" (click)="vm.export('student', 'docx', version)" i18n="@@ui_c9990b5866c4">Student Word</button>
-        <button class="btn small" (click)="vm.export('teacher', 'docx', version)" i18n="@@ui_073c068f9d92">Teacher Word</button>
-        <button class="btn small" (click)="vm.export('student', 'print', version)" i18n="@@ui_1d22369dc1e7">Student print view</button>
-        <button class="btn small" (click)="vm.export('teacher', 'print', version)" i18n="@@ui_8f3699ecf916">Teacher print view</button>
+        <button class="btn small" (click)="vm.toggleExports(version)">{{ ui('Export') }}</button>
+        <button class="btn small" (click)="duplicateVersion = version" i18n="@@duplicateVersion">Duplicate version</button>
       </div>
       @for (section of version.draft.sections; track section.id) {
         <div class="snapshot-section"><h3>{{ normalizeHeading(section.title) }}</h3><p>{{ section.instructions }}</p>
@@ -38,6 +36,10 @@
     </section>
   }
 </div>
+
+@if (duplicateVersion; as version) {
+  <studio-document-filing [context]="vm.doc?.context ?? null" [duplicate]="true" [version]="version" (closed)="duplicateVersion = undefined" />
+}
 
 @if (renaming; as version) {
   <studio-teacher-dialog [title]="copy.renameVersion" [description]="copy.nameHelp" [busy]="savingName" (closed)="renaming = undefined">

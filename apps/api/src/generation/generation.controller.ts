@@ -13,6 +13,9 @@ export class GenerationController {
   @Get()
   attempts(@Param('id') id: string) { return this.jobs.list(id); }
 
+  @Get(':job')
+  detail(@Param('id') id: string, @Param('job') job: string) { return this.jobs.detail(id, job); }
+
   @Post()
   @HttpCode(202)
   enqueue(@Param('id') id: string, @Headers('idempotency-key') key: string | undefined, @Body() body: unknown) {

@@ -1,12 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { execFile as runFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { StudioStore } from '../dist/api/apps/api/src/persistence/studio-store.js';
 import { initialSettings } from '../dist/api/libs/contracts/src/index.js';
-import { postgresFixture } from './postgres-fixture.mjs';
+import { dropTestSchema, postgresFixture } from './postgres-fixture.mjs';
 
 test('PostgreSQL preserves saved work across reconnects, serializes concurrent saves and rolls back failed transactions', async () => {
   const database = await postgresFixture();
@@ -56,8 +58,15 @@ test('PostgreSQL preserves saved work across reconnects, serializes concurrent s
     assert.equal((await store.snapshot(document, revision.id)).name, 'Reviewed for 9B');
     assert.equal((await store.chunks(source))[0].text, 'Maps represent distances.');
     assert.equal((await store.list()).length, 1);
+    await store.run(`INSERT INTO documents (id, updated, settings)
+      SELECT gen_random_uuid(), NOW(), $1::json FROM generate_series(1, 260)`, JSON.stringify(settings));
+    assert.equal((await store.list()).some(item => item.id === document), false);
+    const found = await store.searchDocuments({ query: 'saved geography', page: 1 });
+    assert.deepEqual(found.items.map(item => item.id), [document]);
+    assert.equal((await store.searchDocuments({ query: '', page: 1 })).hasMore, true);
+    assert.equal((await store.searchDocuments({ query: '', page: 6 })).items.length, 11);
     assert.equal((await store.jobRows(document)).length, 1);
-    assert.deepEqual(await store.all('SELECT name FROM migrations ORDER BY name'), [{ name: '001-initial.sql' }, { name: '002-document-types.sql' }, { name: '003-version-names.sql' }]);
+    assert.deepEqual(await store.all('SELECT name FROM migrations ORDER BY name'), [{ name: '001-initial.sql' }, { name: '002-document-types.sql' }, { name: '003-version-names.sql' }, { name: '004-source-archive.sql' }, { name: '005-class-materials.sql' }]);
     const saved = await Promise.allSettled([1, 2].map(number => store.save(document, {
       edit: persisted.edit, settings: { ...settings, brief: { ...settings.brief, brief: 'Edit ' + number } }, draft,
     })));
@@ -74,6 +83,42 @@ test('PostgreSQL preserves saved work across reconnects, serializes concurrent s
     assert.equal((await store.document(document)).ready, false);
   } finally {
     await store?.close();
+    await database.close();
+    await rm(folder, { recursive: true, force: true });
+  }
+});
+
+test('portable backup preserves database records and original files in a new workspace', async () => {
+  const database = await postgresFixture();
+  const restoredSchema = 'studio_test_' + randomUUID().replaceAll('-', '');
+  const temp = await realpath(tmpdir());
+  const folder = await realpath(await mkdtemp(join(temp, 'studio-pg-backup-')));
+  assert.equal(dirname(folder), temp);
+  const data = join(folder, 'original');
+  const restoredData = join(folder, 'restored');
+  const backup = join(folder, 'backup');
+  const env = { ...process.env, ...database.env, STUDIO_DATA: data };
+  const backupCommand = (...args) => promisify(runFile)(process.execPath, ['scripts/studio-backup.mjs', ...args], { env });
+  let store;
+  try {
+    store = await StudioStore.connect(data, database.env.DATABASE_URL, database.env.STUDIO_DATABASE_SCHEMA);
+    const document = await store.create(initialSettings('Worksheet'));
+    const sourceId = randomUUID();
+    await store.run("INSERT INTO sources (id, doc_id, name, type, file_ext, status) VALUES ($1, $2, 'Map.txt', 'file', '.txt', 'ready')",
+      sourceId, document.id);
+    await writeFile(store.file(sourceId), 'A map legend explains symbols.');
+    await store.close();
+    store = undefined;
+    await backupCommand('create', backup);
+    assert.match((await backupCommand('inspect', backup)).stdout, /original uploads/);
+    await backupCommand('restore', backup, restoredSchema, restoredData);
+    await assert.rejects(backupCommand('restore', backup, restoredSchema, restoredData), /does not already exist/);
+    store = await StudioStore.connect(restoredData, database.env.DATABASE_URL, restoredSchema);
+    assert.equal((await store.document(document.id)).sources[0].id, sourceId);
+    assert.equal(await readFile(store.file(sourceId), 'utf8'), 'A map legend explains symbols.');
+  } finally {
+    await store?.close();
+    await dropTestSchema(restoredSchema);
     await database.close();
     await rm(folder, { recursive: true, force: true });
   }
