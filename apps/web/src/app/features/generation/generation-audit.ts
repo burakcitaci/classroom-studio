@@ -1,7 +1,7 @@
 import { interfaceLocale } from '../../core/i18n/locale';
 import { EmptyState, designCopy } from '../../shared/studio-ui';
 import { ui } from '../../core/i18n/ui-messages';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { WorkspaceStore } from '../workspace/workspace-store';
 import { Icon } from '../../shared/icon/icon';
 import { roleLabels, type Job, type JobSummary } from '../../../../../../libs/contracts/src';
@@ -22,18 +22,37 @@ export class GenerationAudit {
   protected readonly currentAudit = signal('');
   protected readonly detail = signal<Job | undefined>(undefined);
   protected readonly error = signal('');
+  private readonly selectedState = computed(() => {
+    const job = this.vm.jobs.find(summary => summary.id === this.currentAudit());
+    return job ? [job.id, job.stage, job.reviewStep].join('|') : '';
+  });
 
-  protected async toggleAudit(summary: JobSummary) {
-    const id = this.currentAudit() === summary.id ? '' : summary.id;
-    this.currentAudit.set(id);
+  constructor() {
+    effect(() => {
+      const state = this.selectedState();
+      if (state) void this.loadDetail(state);
+    });
+  }
+
+  protected toggleAudit(summary: JobSummary) {
     this.detail.set(undefined);
     this.error.set('');
-    if (!id) return;
+    this.currentAudit.set(this.currentAudit() === summary.id ? '' : summary.id);
+  }
+
+  private async loadDetail(state: string) {
+    const id = this.currentAudit();
     try {
-      const job = await this.vm.loadJob(id);
-      if (this.currentAudit() === id) this.detail.set(job);
+      const job = await this.workspace.loadJob(id);
+      if (this.selectedState() === state) {
+        this.detail.set(job);
+        this.error.set('');
+      }
     } catch (error) {
-      if (this.currentAudit() === id) this.error.set(error instanceof Error ? error.message : String(error));
+      if (this.selectedState() === state) {
+        this.detail.set(undefined);
+        this.error.set(error instanceof Error ? error.message : String(error));
+      }
     }
   }
   protected readonly time = formatTimestamp;

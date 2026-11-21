@@ -94,6 +94,32 @@ test('generation explains the locked plan and model errors provide retry', async
   await expect(generate).toHaveAccessibleDescription('Save your plan to generate.');
 });
 
+test('mobile review setup requires confirmation before requesting Gemini', async ({ page }) => {
+  const id = await draftDocument(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/status', route => route.fulfill({ json: { provider: 'ollama', geminiReview: true } }));
+  await page.route('**/api/models', route => route.fulfill({ json: ['local-drafter', 'local-reviewer'] }));
+  await page.route('**/api/documents/' + id + '/jobs', route => route.fulfill({ status: 400, json: { message: 'Test request captured' } }));
+  await page.goto('/?document=' + id + '&view=brief&lang=en');
+  const modelMenu = page.locator('summary[aria-label="Ollama model"]');
+  await modelMenu.click();
+  await page.getByRole('combobox', { name: 'Ollama model' }).selectOption('local-drafter');
+  await modelMenu.click();
+  const mode = page.getByRole('combobox', { name: 'Review mode' });
+  await expect(mode).toHaveValue('standard');
+  await mode.selectOption('local');
+  await expect(page.getByRole('combobox', { name: 'Ollama source reviewer' })).toHaveValue('local-reviewer');
+  await expect(page.getByRole('checkbox', { name: /send this run/i })).toHaveCount(0);
+  await mode.selectOption('gemini');
+  const button = page.getByRole('button', { name: 'Generate with review', exact: true });
+  await expect(button).toBeDisabled();
+  await page.getByRole('checkbox', { name: /send this run/i }).check();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+  const request = page.waitForRequest(req => req.url().endsWith('/jobs') && req.method() === 'POST');
+  await button.click();
+  expect((await request).postDataJSON().settings.review).toEqual({ localModel: 'local-reviewer', gemini: true });
+});
+
 test('class cards show the next lesson and timeline actions keep lesson context', async ({ page }, info) => {
   const classroom = await (await page.request.post('/api/classes', { data: {
     title: '9B Biology', subject: 'Biology', grade: 'Year 9', schoolYear: '2026–27', language: 'en',

@@ -1,13 +1,14 @@
 import { BadRequestException, ConflictException, Inject, Injectable, type OnApplicationBootstrap } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { type Brief, type Generation, type Job, type Question } from '../../../../libs/contracts/src/index.js';
-import { generationParameters, PROMPT_VERSION, type FactPassage, type Generator, validateAssessment } from './assessment/assessment-schema.js';
+import { reviewOutputSchema, type Assessment, type Brief, type Generation, type Job, type Question, type ReviewPass } from '../../../../libs/contracts/src/index.js';
+import { generationParameters, outputSchema, PROMPT_VERSION, type FactPassage, type GenerationContext, type Generator, validateAssessment } from './assessment/assessment-schema.js';
 import { factPassages, isExamReference } from './assessment/exam-reference.js';
 import { ProviderError } from '../providers/provider-request.js';
 import { retrieve, type VectorIndex } from '../sources/retrieval.js';
 import { decode, encode, now, StudioStore, type JobRow } from '../persistence/studio-store.js';
 import { StudioConfig } from '../config/studio-config.js';
 import { GENERATOR, VECTOR_INDEX } from '../providers/providers.module.js';
+import { reviewWithGemini } from '../providers/gemini-review.js';
 
 interface Input {
   settings: Generation;
@@ -69,10 +70,20 @@ export class GenerationService implements OnApplicationBootstrap {
       if (settings.generationModel && !this.generator.listModels) {
         throw new BadRequestException('Enable Ollama mode before selecting a model.');
       }
+      if (settings.review) {
+        if (!this.generator.reviewSources || !this.generator.revise) throw new BadRequestException('Draft review requires Ollama.');
+        if (settings.review.localModel === (settings.generationModel ?? this.generator.model)) {
+          throw new BadRequestException('Choose a different Ollama model for source review.');
+        }
+        if (settings.review.gemini && (!this.config.geminiKey || !this.config.geminiModel)) {
+          throw new BadRequestException('Gemini review is not configured.');
+        }
+      }
       const audit: Job = { id: randomUUID(), stage: 'queued', created: now(),
         model: settings.generationModel ?? this.generator.model,
         promptVersion: PROMPT_VERSION, parameters: generationParameters(settings), settings,
-        sources: selected.map(({ id, name, type }) => ({ id, name, type })), evidence: [], warnings: [] };
+        sources: selected.map(({ id, name, type }) => ({ id, name, type })), evidence: [], warnings: [],
+        review: settings.review ? { passes: [], geminiModel: settings.review.gemini ? this.config.geminiModel : undefined } : undefined };
       await this.store.run('INSERT INTO jobs (id, doc_id, request_key, input, base_edit, created, stage, audit) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
         audit.id, id, key, encode({ settings, existing }), edit, audit.created, audit.stage, encode(audit));
       return audit;
@@ -174,17 +185,14 @@ export class GenerationService implements OnApplicationBootstrap {
       referenceText: usable.filter(source => (settings.brief.documentType?.audience === 'teacher' && retrievalSettings.rag !== 'Off') || source.role === 'format').map(source => text(source.id)) };
     const response = await this.generator.generate(context);
     providerWarnings.push(...(response.warnings ?? []));
-    if (audit.usage && response.usage) {
-      audit.usage = { input: (audit.usage.input ?? 0) + (response.usage.input ?? 0),
-        output: (audit.usage.output ?? 0) + (response.usage.output ?? 0) };
-    } else {
-      audit.usage ??= response.usage;
-    }
+    this.addUsage(audit, response.usage);
+    const current = await this.store.document(row.doc_id);
+    const draft = audit.review && settings.review
+      ? await this.reviewDraft(audit, settings.review, context, response.output, current.draft, providerWarnings)
+      : validateAssessment(response.output, context, current.draft);
+    delete audit.reviewStep;
     audit.stage = 'validating';
     await this.write(row.id, audit);
-
-    const current = await this.store.document(row.doc_id);
-    const draft = validateAssessment(response.output, context, current.draft);
     audit.warnings.push(...draft.warnings);
     draft.warnings = [...new Set(audit.warnings)];
     audit.warnings.push(...new Set(providerWarnings));
@@ -192,7 +200,7 @@ export class GenerationService implements OnApplicationBootstrap {
       if (existing) {
         audit.preview = draft.sections[0].questions[0];
       } else {
-        const { questionId: _questionId, ...snapshotSettings } = settings;
+        const { questionId: _questionId, review: _review, ...snapshotSettings } = settings;
         const version = await this.store.addSnapshot(row.doc_id, 'AI', draft, snapshotSettings, audit.id);
         audit.versionId = version.id;
         const changed = await this.store.run('UPDATE documents SET draft = $1, settings = $2, updated = $3, edit = edit + 1, ready = 0 WHERE id = $4 AND edit = $5',
@@ -203,6 +211,73 @@ export class GenerationService implements OnApplicationBootstrap {
       audit.duration = Date.now() - Date.parse(row.started ?? row.created);
       await this.write(row.id, audit);
     });
+  }
+
+  private async reviewDraft(audit: Job, options: NonNullable<Generation['review']>, context: GenerationContext,
+    output: unknown, previous: Assessment | null, warnings: string[]) {
+    const baseline = validateAssessment(output, context, previous);
+    const review = audit.review!;
+    const raw = outputSchema.parse(output);
+    const count = raw.sections.reduce((sum, section) => sum + section.questions.length, 0);
+    if (context.evidence.length) {
+      audit.reviewStep = 'checkingSources';
+      await this.write(audit.id, audit);
+      review.passes.push(await this.reviewPass('local', options.localModel, count, async () => {
+        const models = await this.generator.listModels?.();
+        if (!models?.includes(options.localModel)) throw new ProviderError('The source reviewer is unavailable.');
+        return this.generator.reviewSources!(options.localModel, context, raw);
+      }));
+    } else {
+      review.passes.push({ role: 'local', model: options.localModel, status: 'noEvidence', findings: [], duration: 0 });
+    }
+    if (options.gemini && review.geminiModel) {
+      const model = review.geminiModel;
+      audit.reviewStep = 'askingGemini';
+      await this.write(audit.id, audit);
+      review.passes.push(await this.reviewPass('gemini', model, count, async () => {
+        if (!this.config.geminiKey || this.config.geminiModel !== model) throw new ProviderError('Gemini review is unavailable.');
+        return reviewWithGemini(this.config.geminiKey, model, context.settings.brief, raw);
+      }));
+    }
+    for (const pass of review.passes) this.addUsage(audit, pass.usage);
+    const findings = review.passes.flatMap(pass => pass.findings);
+    if (!findings.length) return baseline;
+    audit.reviewStep = 'revising';
+    await this.write(audit.id, audit);
+    review.revision = 'keptOriginal';
+    try {
+      const revised = await this.generator.revise!(context, raw, findings);
+      this.addUsage(audit, revised.usage);
+      warnings.push(...(revised.warnings ?? []));
+      const candidate = outputSchema.parse(revised.output);
+      const draft = validateAssessment(candidate, context, previous);
+      if (encode(candidate) === encode(raw)) return baseline;
+      review.revision = 'applied';
+      return draft;
+    } catch {
+      return baseline;
+    }
+  }
+
+  private async reviewPass(role: ReviewPass['role'], model: string, count: number,
+    run: () => Promise<{ output: unknown; usage?: Job['usage'] }>): Promise<ReviewPass> {
+    const started = Date.now();
+    try {
+      const { output, usage } = await run();
+      const { findings } = reviewOutputSchema.parse(output);
+      if (findings.some(item => item.question > count)) throw new ProviderError('Review referred to an unknown question.');
+      return { role, model, status: 'completed', findings, duration: Date.now() - started, usage };
+    } catch {
+      return { role, model, status: 'unavailable', findings: [], duration: Date.now() - started };
+    }
+  }
+
+  private addUsage(audit: Job, usage: Job['usage']) {
+    if (!usage) return;
+    audit.usage = {
+      input: (audit.usage?.input ?? 0) + (usage.input ?? 0),
+      output: (audit.usage?.output ?? 0) + (usage.output ?? 0),
+    };
   }
 
   private async fail(row: JobRow, audit: Job, error: string) {

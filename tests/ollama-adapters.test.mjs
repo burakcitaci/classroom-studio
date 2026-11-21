@@ -5,12 +5,66 @@ import { assessmentMarkPlan, plannedOutput } from '../dist/api/apps/api/src/gene
 import { examQuestionCheck } from '../dist/api/apps/api/src/generation/assessment/exam-reference.js';
 import { validateAssessment } from '../dist/api/apps/api/src/generation/assessment/assessment-schema.js';
 import { OllamaGenerator } from '../dist/api/apps/api/src/providers/ollama-generator.js';
+import { GenerationService } from '../dist/api/apps/api/src/generation/generation.service.js';
 import { QdrantIndex } from '../dist/api/apps/api/src/providers/qdrant-index.js';
 import { initialSettings } from '../dist/api/libs/contracts/src/index.js';
 
 const transportOutput = { title: 'Geography', instructions: 'Answer the question.', teacherNotes: '', warnings: [],
   sections: [{ title: 'Directions', instructions: '', questions: [{ prompt: 'Name a cardinal direction.', points: 5, lines: 2,
     answer: 'North.', rubric: 'Five points for a valid direction.', citations: [] }] }] };
+
+test('review isolates the cloud payload and falls back to the valid draft if revision fails', async t => {
+  const settings = initialSettings();
+  settings.brief.brief = 'Create a five-point assessment on directions.';
+  settings.review = { localModel: 'local-reviewer', gemini: true };
+  const draft = { ...transportOutput, teacherNotes: 'PRIVATE_TEACHER_NOTE' };
+  const context = { settings, format: [], evidence: [{
+    id: randomUUID(), sourceId: randomUUID(), ordinal: 0, name: 'PRIVATE_FILENAME', text: 'PRIVATE_EXCERPT', use: 'content',
+  }] };
+  const finding = { question: 1, issue: 'The scoring requires an example.', suggestion: 'Clarify the expected answer.' };
+  const localCalls = [];
+  const generator = {
+    listModels: async () => ['local-reviewer'],
+    reviewSources: async (model, input) => {
+      assert.equal(model, 'local-reviewer');
+      assert.equal(input.evidence[0].text, 'PRIVATE_EXCERPT');
+      localCalls.push('review');
+      return { output: { findings: [finding] }, usage: { input: 5, output: 2 } };
+    },
+    revise: async (_context, original, findings) => {
+      assert.deepEqual(original, draft);
+      assert.deepEqual(findings, [finding, finding]);
+      localCalls.push('revise');
+      return { output: { invalid: true } };
+    },
+  };
+  const writes = [];
+  const service = new GenerationService({ run: async (_sql, _stage, audit) => writes.push(JSON.parse(audit).reviewStep) },
+    {}, generator, { geminiKey: 'test-key', geminiModel: 'gemini-test' });
+  const mock = t.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal(url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-test:generateContent');
+    assert.equal(options.headers['x-goog-api-key'], 'test-key');
+    assert.doesNotMatch(options.body, /PRIVATE_|test-key|citations/);
+    assert.match(options.body, /five-point assessment/);
+    return Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify({ findings: [finding] }) }] } }],
+      usageMetadata: { promptTokenCount: 4, candidatesTokenCount: 3, thoughtsTokenCount: 1 } });
+  });
+  const audit = { id: randomUUID(), stage: 'generating', review: { passes: [], geminiModel: 'gemini-test' } };
+  const result = await service.reviewDraft(audit, settings.review, context, draft, null, []);
+  assert.deepEqual(localCalls, ['review', 'revise']);
+  assert.equal(mock.mock.callCount(), 1);
+  assert.deepEqual(writes, ['checkingSources', 'askingGemini', 'revising']);
+  assert.deepEqual(audit.review.passes.map(pass => pass.status), ['completed', 'completed']);
+  assert.equal(audit.review.revision, 'keptOriginal');
+  assert.deepEqual(audit.usage, { input: 9, output: 6 });
+  assert.equal(result.teacherNotes, 'PRIVATE_TEACHER_NOTE');
+
+  generator.reviewSources = async () => ({ output: { findings: [] } });
+  const localAudit = { id: randomUUID(), stage: 'generating', review: { passes: [] } };
+  await service.reviewDraft(localAudit, { ...settings.review, gemini: false }, context, draft, null, []);
+  assert.equal(localAudit.review.revision, undefined);
+  assert.equal(mock.mock.callCount(), 1);
+});
 
 test('Ollama sends structured output and validates citation scope, totals and fresh questions', async t => {
   const settings = initialSettings();

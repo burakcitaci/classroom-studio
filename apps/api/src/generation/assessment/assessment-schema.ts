@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { assessmentSchema, questionBodySchema, type Assessment, type Evidence, type Generation, type Job, type Question } from '../../../../../libs/contracts/src/index.js';
+import { assessmentSchema, questionBodySchema, type Assessment, type Evidence, type Generation, type Job, type Question, type ReviewFinding } from '../../../../../libs/contracts/src/index.js';
 import { ProviderError } from '../../providers/provider-request.js';
 import { comparable, examQuestionCheck } from './exam-reference.js';
 import { assessmentRequirements } from './assessment-quality.js';
@@ -31,6 +31,8 @@ export interface Generator {
   listModels?(): Promise<string[]>;
   extractFacts?(settings: Generation, passages: FactPassage[]): Promise<{ evidence: Evidence[]; usage?: Job['usage']; warnings?: string[] }>;
   generate(context: GenerationContext): Promise<{ output: unknown; usage?: Job['usage']; warnings?: string[] }>;
+  reviewSources?(model: string, context: GenerationContext, draft: ModelOutput): Promise<{ output: unknown; usage?: Job['usage'] }>;
+  revise?(context: GenerationContext, draft: ModelOutput, findings: ReviewFinding[]): Promise<{ output: unknown; usage?: Job['usage']; warnings?: string[] }>;
 }
 export interface GenerationContext {
   settings: Generation;

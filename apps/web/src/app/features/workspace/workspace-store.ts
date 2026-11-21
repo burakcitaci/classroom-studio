@@ -10,6 +10,7 @@ import { ApiError, StudioApi } from '../../core/studio-api';
 import { workspaceTabs, type Tab } from './workspace-tabs';
 
 type Copy = 'student' | 'teacher';
+type ReviewMode = 'standard' | 'local' | 'gemini';
 
 @Injectable()
 export class WorkspaceStore implements OnDestroy {
@@ -33,10 +34,28 @@ export class WorkspaceStore implements OnDestroy {
     return { id, edit, title, guidance, audience };
   }
   private readonly notifications = inject(Notifications);
-  private trackedJob?: { id: string; stage?: Job['stage'] };
+  private trackedJob?: { id: string; stage?: Job['stage']; reviewStep?: Job['reviewStep'] };
   private readonly viewRevision = signal(0);
 
   provider: 'demo' | 'ollama' | undefined;
+  geminiReview = false;
+  readonly reviewMode = signal<ReviewMode>('standard');
+  readonly preferredReviewer = signal('');
+  readonly cloudReviewConfirmed = signal(false);
+  get reviewerModels() { return this.ollamaModels.filter(model => model !== this.generationModel); }
+  get reviewerModel() {
+    const models = this.reviewerModels;
+    return models.includes(this.preferredReviewer()) ? this.preferredReviewer() : models[0] ?? '';
+  }
+  get reviewBlocked() {
+    return this.reviewMode() !== 'standard' && (!this.reviewerModel ||
+      (this.reviewMode() === 'gemini' && (!this.geminiReview || !this.cloudReviewConfirmed())));
+  }
+  chooseReview(value: string) {
+    if (value !== 'standard' && value !== 'local' && value !== 'gemini') return;
+    this.reviewMode.set(value);
+    this.cloudReviewConfirmed.set(false);
+  }
   ollamaModels: string[] = [];
   loadingModels = false;
   modelListError = '';
@@ -112,9 +131,12 @@ export class WorkspaceStore implements OnDestroy {
   private syncGenerationToast() {
     const active = this.active;
     if (active) {
-      if (this.trackedJob?.id === active.id && this.trackedJob.stage === active.stage) return;
-      this.trackedJob = { id: active.id, stage: active.stage };
-      const label = active.stage === 'queued' ? ui('Queued') : active.stage === 'retrieving' ? ui('Finding source excerpts')
+      if (this.trackedJob?.id === active.id && this.trackedJob.stage === active.stage && this.trackedJob.reviewStep === active.reviewStep) return;
+      this.trackedJob = { id: active.id, stage: active.stage, reviewStep: active.reviewStep };
+      const label = active.reviewStep === 'checkingSources' ? $localize`:@@reviewCheckingSources:Checking sources with Ollama`
+        : active.reviewStep === 'askingGemini' ? $localize`:@@reviewAskingGemini:Getting a second opinion from Gemini`
+        : active.reviewStep === 'revising' ? $localize`:@@reviewRevising:Revising the draft`
+        : active.stage === 'queued' ? ui('Queued') : active.stage === 'retrieving' ? ui('Finding source excerpts')
         : active.stage === 'generating' ? ui('Writing your draft') : ui('Checking structure and points');
       this.notifications.loading(label, {
         id: 'generation-progress', description: ui('Progress is saved. You can leave or refresh this page.'),
@@ -134,6 +156,7 @@ export class WorkspaceStore implements OnDestroy {
     } else if (completed?.stage === 'succeeded') {
       this.notifications.success(completed.settings.questionId ? $localize`:@@replacementReady:Your replacement question is ready to review.` : ui('Your draft is ready to review.'), {
         id: 'generation-progress', action: { label: ui('Open editor'), onClick: () => this.selectTab('editor') },
+        ...(completed.settings.review ? { cancel: { label: ui('View audit'), onClick: () => this.selectTab('audit') } } : {}),
       });
     } else this.notifications.dismiss('generation-progress');
   }
@@ -149,8 +172,9 @@ export class WorkspaceStore implements OnDestroy {
     window.addEventListener('popstate', this.pop);
     window.addEventListener('beforeunload', this.unload);
     void this.loadLocation();
-    void this.api.request<{ provider: 'demo' | 'ollama' }>('/status').then(status => {
+    void this.api.request<{ provider: 'demo' | 'ollama'; geminiReview?: boolean }>('/status').then(status => {
       this.provider = status.provider;
+      this.geminiReview = status.geminiReview === true;
       if (status.provider === 'ollama') void this.loadModels();
       this.publish();
     }).catch(() => this.fail($localize`:@@ui_5047a9efcde3:The local API could not be reached. Check that Classroom Studio is running.`));
@@ -278,6 +302,8 @@ export class WorkspaceStore implements OnDestroy {
       return;
     }
     const token = ++this.navigation;
+    this.chooseReview('standard');
+    this.preferredReviewer.set('');
     this.notifications.dismiss('generation-progress');
     this.trackedJob = undefined;
     this.jobs = [];
@@ -696,6 +722,7 @@ export class WorkspaceStore implements OnDestroy {
   }
 
   async savePlanAndGenerate() {
+    if (this.reviewBlocked) return;
     if (await this.savePlan()) await this.generate();
   }
 
@@ -738,6 +765,9 @@ export class WorkspaceStore implements OnDestroy {
 
   async generate(question?: Question) {
     if (!this.doc || this.active || this.busy || !this.provider) return;
+    if (!question && this.reviewBlocked) return;
+    const review = !question && this.provider === 'ollama' && this.reviewMode() !== 'standard'
+      ? { localModel: this.reviewerModel, gemini: this.reviewMode() === 'gemini' } : undefined;
     if (this.provider === 'ollama' && !this.generationModel) { this.fail($localize`:@@ui_b60ace3c7fbc:Choose an Ollama model before generating.`); return; }
     if (!this.settings.brief.brief.trim()) { this.fail($localize`:@@ui_01d9c7043ed3:Write a short brief first.`); return; }
     this.error = '';
@@ -748,7 +778,7 @@ export class WorkspaceStore implements OnDestroy {
       if (!await this.flush() || this.doc?.id !== id) return;
       const { generationModel, ...saved } = structuredClone(this.settings);
       const settings: Generation = { ...saved, ...(this.provider === 'ollama' ? { generationModel } : {}),
-        ...(question ? { questionId: question.id } : {}) };
+        ...(question ? { questionId: question.id } : {}), ...(review ? { review } : {}) };
       const payload = { settings, edit: this.doc.edit };
       const signature = JSON.stringify(settings);
       const sessionKey = 'studio-attempt-' + id;
@@ -759,6 +789,7 @@ export class WorkspaceStore implements OnDestroy {
         const job = await this.api.request<Job>('/documents/' + id + '/jobs', { method: 'POST', key, body: payload });
         sessionStorage.removeItem(sessionKey);
         if (this.doc?.id !== id) return;
+        if (review?.gemini) this.cloudReviewConfirmed.set(false);
         ++this.generationEpoch;
         // Polling can discover this job before POST returns. Keep that newer
         // stage and its notification instead of replaying the queued snapshot.
@@ -776,9 +807,17 @@ export class WorkspaceStore implements OnDestroy {
   }
 
   retryGeneration() {
+    const review = this.recent?.settings.review;
+    if (review) {
+      this.preferredReviewer.set(review.localModel);
+      this.chooseReview(review.gemini ? 'gemini' : 'local');
+      this.selectTab('brief');
+      return;
+    }
     const id = this.recent?.settings.questionId;
     const question = this.draft?.sections.flatMap(section => section.questions).find(item => item.id === id);
     if (id && !question) { this.fail($localize`:@@ui_4201e7ad1170:The original question is no longer in this draft.`); return; }
+    if (!question) this.chooseReview('standard');
     void this.generate(question);
   }
 

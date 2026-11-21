@@ -171,15 +171,17 @@ export class StudioStore {
     const [sources, rows] = await Promise.all([
       this.all<{ id: string; status: Source['status']; error: string | null; retryable: number; archived: boolean }>(
         'SELECT id, status, error, retryable, archived FROM sources WHERE doc_id = $1 ORDER BY position', id),
-      this.all<Omit<JobSummary, 'settings'> & JobSummary['settings']>(`SELECT id, stage, created, audit->>'model' AS model,
+      this.all<Omit<JobSummary, 'settings'> & Omit<JobSummary['settings'], 'review'> & { review: string | null }>(`SELECT id, stage, created, audit->>'model' AS model,
         audit->>'error' AS error, audit->>'versionId' AS "versionId", audit->'settings'->>'questionId' AS "questionId",
+        audit->>'reviewStep' AS "reviewStep", audit->'settings'->>'review' AS review,
         audit->'settings'->>'rag' AS rag, (audit->>'preview' IS NOT NULL) AS "hasPreview"
         FROM jobs WHERE doc_id = $1 ORDER BY created DESC, position DESC`, id),
     ]);
     return { edit: document.edit,
       sources: sources.map(source => ({ ...source, error: source.error ?? undefined, retryable: Boolean(source.retryable) })),
-      jobs: rows.map(({ rag, questionId, error, versionId, ...job }) => ({
-        ...job, error: error ?? undefined, versionId: versionId ?? undefined, settings: { rag, questionId: questionId ?? undefined },
+      jobs: rows.map(({ rag, questionId, review, reviewStep, error, versionId, ...job }) => ({
+        ...job, reviewStep: reviewStep ?? undefined, error: error ?? undefined, versionId: versionId ?? undefined,
+        settings: { rag, questionId: questionId ?? undefined, review: review ? decode(review) : undefined },
       })),
     };
   }

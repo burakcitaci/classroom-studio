@@ -38,7 +38,10 @@
         <p class="form-help mt-3" i18n="@@planSaveHelp">Changes take effect after you save the plan.</p>
         <div class="button-row mt-3">
           <button type="button" class="btn small" (click)="vm.savePlan()" [disabled]="vm.busy || !vm.settings.brief.brief.trim()"><studio-icon name="check" /><ng-container i18n="@@savePlan">Save plan</ng-container></button>
-          <button type="button" class="btn primary small plan-generate-action" (click)="vm.savePlanAndGenerate()" [disabled]="vm.busy || !vm.settings.brief.brief.trim() || !vm.provider || !!vm.active || (vm.provider === 'ollama' && !vm.generationModel)" i18n="@@savePlanAndGenerate">Save plan and generate</button>
+          <button type="button" class="btn primary small plan-generate-action" (click)="vm.savePlanAndGenerate()" [disabled]="vm.busy || !vm.settings.brief.brief.trim() || !vm.provider || !!vm.active || vm.reviewBlocked || (vm.provider === 'ollama' && !vm.generationModel)">
+            @if (vm.reviewMode() !== 'standard') { <ng-container i18n="@@savePlanAndReview">Save plan and generate with review</ng-container> }
+            @else { <ng-container i18n="@@savePlanAndGenerate">Save plan and generate</ng-container> }
+          </button>
           <button type="button" class="btn small" (click)="vm.cancelPlan()" [disabled]="vm.busy" i18n="@@ui_77dfd2135f4d">Cancel</button>
           @if (vm.savingPlan) { <span role="status" i18n="@@savingPlan">Saving plan…</span> }
         </div>

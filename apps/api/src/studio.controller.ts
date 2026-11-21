@@ -14,7 +14,10 @@ export class StudioController {
   constructor(private readonly config: StudioConfig, @Inject(GENERATOR) private readonly generator: Generator) {}
 
   @Get('status')
-  status() { return { provider: this.config.provider, model: this.generator.model }; }
+  status() {
+    return { provider: this.config.provider, model: this.generator.model,
+      geminiReview: this.config.provider === 'ollama' && !!this.config.geminiKey && !!this.config.geminiModel };
+  }
 
   @Get('models')
   @Header('Cache-Control', 'no-store')

@@ -9,6 +9,8 @@ export class StudioConfig {
   readonly embedding: string;
   readonly qdrantUrl: string;
   readonly qdrantKey?: string;
+  readonly geminiKey?: string;
+  readonly geminiModel?: string;
   readonly demoDelay: number;
 
   constructor(env: NodeJS.ProcessEnv) {
@@ -24,6 +26,9 @@ export class StudioConfig {
     this.embedding = env['OLLAMA_EMBED_MODEL'] || 'nomic-embed-text';
     this.qdrantUrl = env['QDRANT_URL'] || 'http://127.0.0.1:6335';
     this.qdrantKey = env['QDRANT_API_KEY'];
+    this.geminiKey = env['GEMINI_API_KEY']?.trim() || undefined;
+    const geminiModel = env['GEMINI_MODEL']?.trim();
+    this.geminiModel = geminiModel && /^gemini-[a-z0-9.-]+$/i.test(geminiModel) ? geminiModel : undefined;
     this.demoDelay = provider === 'demo'
       ? env['NODE_ENV'] === 'test' ? Math.min(5000, Number(env['STUDIO_TEST_DELAY'] ?? 0)) : 400
       : 0;

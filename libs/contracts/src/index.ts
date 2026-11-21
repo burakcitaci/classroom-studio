@@ -42,7 +42,11 @@ export const settingsSchema = z.strictObject({
   hops: z.number().int().min(1).max(2).default(1),
 });
 export type Settings = z.infer<typeof settingsSchema>;
-export const generationSchema = settingsSchema.extend({ questionId: uuid.optional() })
+export const generationSchema = settingsSchema.extend({
+  questionId: uuid.optional(),
+  review: z.strictObject({ localModel: text(240), gemini: z.boolean() }).optional(),
+})
+  .refine(value => !value.review || !value.questionId, { message: 'Review is available for full drafts.' })
   .refine(value => value.brief.brief.length > 0, { message: 'Write a short brief first.' });
 export type Generation = z.infer<typeof generationSchema>;
 
@@ -161,6 +165,28 @@ export function normalizeSectionHeading(title: string): string {
   return 'AFB ' + first[1].toUpperCase() + ': ' + heading;
 }
 export type JobStage = 'queued' | 'retrieving' | 'generating' | 'validating' | 'succeeded' | 'failed';
+export const reviewOutputSchema = z.strictObject({
+  findings: z.array(z.strictObject({
+    question: z.number().int().min(0).max(40),
+    issue: text(360),
+    suggestion: text(360),
+  })).max(6),
+});
+export type ReviewFinding = z.infer<typeof reviewOutputSchema>['findings'][number];
+export type ReviewStep = 'checkingSources' | 'askingGemini' | 'revising';
+export interface ReviewPass {
+  role: 'local' | 'gemini';
+  model: string;
+  status: 'completed' | 'unavailable' | 'noEvidence';
+  findings: ReviewFinding[];
+  duration: number;
+  usage?: Job['usage'];
+}
+export interface GenerationReview {
+  geminiModel?: string;
+  passes: ReviewPass[];
+  revision?: 'applied' | 'keptOriginal';
+}
 export interface Job {
   id: string;
   stage: JobStage;
@@ -177,15 +203,18 @@ export interface Job {
   usage?: { input?: number; output?: number };
   versionId?: string;
   preview?: Question;
+  review?: GenerationReview;
+  reviewStep?: ReviewStep;
 }
-export interface JobSummary extends Pick<Job, 'id' | 'stage' | 'created' | 'model' | 'error' | 'versionId'> {
-  settings: Pick<Generation, 'questionId' | 'rag'>;
+export interface JobSummary extends Pick<Job, 'id' | 'stage' | 'created' | 'model' | 'error' | 'versionId' | 'reviewStep'> {
+  settings: Pick<Generation, 'questionId' | 'rag' | 'review'>;
   hasPreview: boolean;
 }
 
 export function summarizeJob(job: Job): JobSummary {
   return { id: job.id, stage: job.stage, created: job.created, model: job.model, error: job.error,
-    versionId: job.versionId, settings: { questionId: job.settings.questionId, rag: job.settings.rag }, hasPreview: Boolean(job.preview) };
+    versionId: job.versionId, reviewStep: job.reviewStep,
+    settings: { questionId: job.settings.questionId, rag: job.settings.rag, review: job.settings.review }, hasPreview: Boolean(job.preview) };
 }
 
 export interface DocumentActivity {

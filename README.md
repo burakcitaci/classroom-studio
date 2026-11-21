@@ -78,6 +78,14 @@ ollama pull nomic-embed-text
 
 Set `STUDIO_PROVIDER=ollama` in `.env`, then run `yarn.cmd start`. Open an assessment and choose its **Ollama model** before generating. The selection is saved with the document, and each generation attempt records the model it used. Adjust `OLLAMA_URL`, `OLLAMA_MODEL`, `OLLAMA_EMBED_MODEL` and `QDRANT_URL` as needed. The bundled Qdrant service binds to `127.0.0.1:6335`. The API is bound to `127.0.0.1:4300`. Run one API process for the configured database. Qdrant can be rebuilt from saved PostgreSQL chunks when a document is retrieved. Use **Retry indexing** after fixing a failed embedding or Qdrant connection.
 
+## Review generated drafts
+
+With two distinct local Ollama text models installed, open **Plan** and select **Local source review** under **Draft review**. The drafting model writes the assessment and the second model checks it against retrieved excerpts. If material is missing, the audit records that the source check was skipped.
+
+For an optional Gemini second opinion, set `GEMINI_API_KEY` and `GEMINI_MODEL` to a Gemini model ID that supports structured output in the API server’s environment, then restart Studio. Choose **Local review and Gemini second opinion** and confirm the data disclosure for that run. The API sends Google a projection of the plan and draft. Original files, retrieved excerpts and private notes stay local. Use synthetic materials while evaluating the feature. See the [Gemini API terms](https://ai.google.dev/gemini-api/terms) before offering cloud review to teachers.
+
+Findings can trigger one revision by the drafting model. Studio validates the result and keeps the original valid draft if revision fails. **Generation audit** records each reviewer, its findings and duration, and whether a revision was saved. To compare reviewers, try the same brief with standard generation, local review, and the Gemini second opinion.
+
 ## Architecture
 
 - `apps/web/src/app/features` groups the standalone Angular screens for documents, assessments, sources, generation and versions. Templates sit beside their components. Shared styles and feature layouts are grouped in `apps/web/src/styles.css`. The interface uses Spartan UI’s Angular button and dialog primitives with local styling. Spartan Sonner displays success, error and generation progress toasts. Save-conflict toasts retain actions to keep edits or load the latest draft. The workspace store coordinates autosave and background progress, and `app/core/studio-api.ts` handles HTTP.

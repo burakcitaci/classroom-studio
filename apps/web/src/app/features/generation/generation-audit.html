@@ -11,6 +11,35 @@
         @if (detail(); as job) {
           <div class="audit-detail">
             @if (job.error) { <div class="message danger">{{ ui(job.error) }}</div> }
+            @if (job.review; as review) {
+              <section class="stack mb-4">
+                <h3 i18n="@@draftReviewResults">Review results</h3>
+                @for (pass of review.passes; track pass.role) {
+                  <div>
+                    <strong>
+                      @if (pass.role === 'local') { <ng-container i18n="@@draftReviewLocal">Local source review</ng-container> }
+                      @else { <ng-container i18n="@@draftReviewSecondOpinion">Gemini second opinion</ng-container> }
+                    </strong>
+                    <small class="muted"> · {{ pass.model }} · {{ number(pass.duration / 1000) + ui(' s') }}</small>
+                    @if (pass.usage; as usage) { <p>{{ ui('Token usage') }} · {{ (usage.input ?? '—') + ui(' input · ') + (usage.output ?? '—') + ui(' output') }}</p> }
+                    @if (pass.status === 'unavailable') { <p i18n="@@draftReviewUnavailable">This reviewer could not complete the check.</p> }
+                    @else if (pass.status === 'noEvidence') { <p i18n="@@draftReviewNoEvidence">Source check skipped because this draft had no evidence excerpts.</p> }
+                    @else {
+                      <ul class="audit-sources">
+                        @for (finding of pass.findings; track $index) {
+                          <li>
+                            @if (finding.question) { <strong i18n="@@draftReviewQuestion">Question {{ finding.question }}</strong> · }
+                            {{ finding.issue }} <div>{{ finding.suggestion }}</div>
+                          </li>
+                        } @empty { <li i18n="@@draftReviewNoFindings">No actionable issues reported.</li> }
+                      </ul>
+                    }
+                  </div>
+                }
+                @if (review.revision === 'applied') { <p i18n="@@draftReviewRevisionApplied">A revised draft passed validation and was saved. Check the findings before sharing.</p> }
+                @if (review.revision === 'keptOriginal') { <p i18n="@@draftReviewOriginalKept">Studio kept the original draft. Use the findings above when editing it.</p> }
+              </section>
+            }
             <dl class="audit-fields">
               <div><dt i18n="@@ui_19eabc961735">Timestamp</dt><dd>{{ time(job.created) }}</dd></div>
               <div><dt i18n="@@ui_1370004da76f">Duration</dt><dd>{{ job.duration !== undefined ? number(job.duration / 1000) + ui(' s') : ui('In progress') }}</dd></div>
